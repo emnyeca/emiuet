@@ -5,6 +5,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/portmacro.h"
 
 #include "driver/ledc.h"
 
@@ -32,6 +33,16 @@
 #define LED_ACTIVE_LOW    (1)
 
 static const int MAX_DUTY = (1 << 13) - 1;
+
+static led_state_t s_state_req = LED_ST_SYSTEM_NORMAL;
+static portMUX_TYPE s_state_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void led_status_set_state(led_state_t st)
+{
+    portENTER_CRITICAL(&s_state_mux);
+    s_state_req = st;
+    portEXIT_CRITICAL(&s_state_mux);
+}
 
 static void led_hw_init(void)
 {
@@ -92,6 +103,7 @@ static const char* led_state_name(led_state_t st)
         case LED_ST_CHARGED:       return "CHARGED";
         case LED_ST_LOW_BATT:      return "LOW_BATT";
         case LED_ST_SLEEP:         return "SLEEP";
+        case LED_ST_FAULT:         return "FAULT";
         default:                   return "UNKNOWN";
     }
 }
@@ -104,6 +116,12 @@ static uint8_t pattern_brightness_for_tick(led_state_t st, uint32_t t_ms_in_stat
     const uint8_t HIGH = 200;
 
     switch (st) {
+        case LED_ST_FAULT: {
+            // 2 Hz blink: 250ms ON / 250ms OFF（OLEDのFault枠点滅と同期しやすい）
+            uint32_t phase = t_ms_in_state % 500;
+            return (phase < 250) ? HIGH : 0;
+        }
+
         case LED_ST_OFF:
             return 0;
 
@@ -155,27 +173,28 @@ static void led_status_task(void *arg)
     const TickType_t tick = pdMS_TO_TICKS(TICK_MS);
     TickType_t last_wake = xTaskGetTickCount();
 
-    const uint32_t DEMO_STEP_MS = 5000;
-
     led_state_t state = LED_ST_SYSTEM_NORMAL;
     uint32_t t_in_state = 0;
 
-    printf("[LedStatus] task started (auto demo). tick=%ums, demo_step=%ums\n",
-           (unsigned)TICK_MS, (unsigned)DEMO_STEP_MS);
-    printf("[LedStatus] initial state: %s\n", led_state_name(state));
+    printf("[LedStatus] task started. tick=%ums\n", (unsigned)TICK_MS);
 
     while (1) {
+        // stateを取り込む
+        led_state_t req;
+        portENTER_CRITICAL(&s_state_mux);
+        req = s_state_req;
+        portEXIT_CRITICAL(&s_state_mux);
+
+        if (req != state) {
+            state = req;
+            t_in_state = 0;
+            printf("[LedStatus] state -> %s\n", led_state_name(state));
+        }
+
         uint8_t level = pattern_brightness_for_tick(state, t_in_state);
         led_hw_apply(level);
 
         t_in_state += TICK_MS;
-
-        if (t_in_state >= DEMO_STEP_MS) {
-            t_in_state = 0;
-            state = (led_state_t)((state + 1) % LED_ST_COUNT);
-            printf("[LedStatus] state -> %s\n", led_state_name(state));
-        }
-
         vTaskDelayUntil(&last_wake, tick);
     }
 }

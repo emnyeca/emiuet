@@ -14,7 +14,15 @@
 
 #include "esp_rom_sys.h"   // esp_rom_delay_us
 #include "emiuet_logo.xbm"
+#include "driver/gpio.h"
 
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+
+#include "esp_timer.h"
+
+#include "led_status.h"
 
 // -------------------------
 // Pin / I2C config
@@ -113,6 +121,57 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 }
 
 // -------------------------
+// Power UI / Debug inputs
+// -------------------------
+#define PIN_PGOOD           38
+#define PIN_CHG             48
+
+#define PIN_DBG_SLIDER      4    // ADC
+#define PIN_DBG_BUTTON      40   // GPIO, pull-up, press=0
+
+#define POWER_UPDATE_MS     500
+
+// Battery icon geometry (yellow area)
+#define BAT_X       2
+#define BAT_Y       3
+#define BAT_W       22
+#define BAT_H       10
+#define NUB_W       2
+#define NUB_H       6
+
+#define BAR_H       6
+#define BAR_W       5
+#define BAR_GAP     1
+
+// 初期閾値（未確定のままでOK：後で微調整）
+#define V_TH_3_TO_2_MV   3950
+#define V_TH_2_TO_1_MV   3750
+#define V_TH_LOW_MV      3550
+
+typedef enum {
+    PWR_MODE_BATTERY = 0,   // 外部電源なし
+    PWR_MODE_EXT_CHARGING = 1,   // 外部電源ありで充電中
+    PWR_MODE_EXT_CHARGED = 2,    // 外部電源ありで充電完了
+    PWR_MODE_FAULT = 3,   // Fault表示
+} power_debug_mode_t;
+
+typedef enum {
+    PWR_STATE_FAULT = 0,
+    PWR_STATE_CHARGING,   // ⚡
+    PWR_STATE_CHARGED,    // 3 bars fixed
+    PWR_STATE_BAT_3,
+    PWR_STATE_BAT_2,
+    PWR_STATE_BAT_1,
+    PWR_STATE_BAT_1_BLINK,
+} power_ui_state_t;
+
+typedef struct {
+    power_ui_state_t state;
+    int bars;              // 0..3（表示用）
+    bool blink_on;         // 点滅のON/OFF（描画で使用）
+} power_ui_t;
+
+// -------------------------
 // Grid UI tweaks
 // -------------------------
 
@@ -156,6 +215,113 @@ static void draw_cell_doublebox_fill(
         int yy = y + h;
         if (yy < OLED_H) {
             u8g2_DrawHLine(u8g2, x, yy, w);
+        }
+    }
+}
+
+// -------------------------
+// ADC (oneshot) handles
+// -------------------------
+static adc_oneshot_unit_handle_t s_adc1 = NULL;
+static adc_cali_handle_t s_adc_cali = NULL;
+static bool s_adc_cali_ok = false;
+
+// デバッグ用モード（GPIO40で巡回）
+static power_debug_mode_t s_dbg_mode = PWR_MODE_BATTERY;
+
+// ボタンデバウンス用
+static int s_btn_last = 1;
+static int64_t s_btn_last_change_us = 0;
+
+static void gpio_init_inputs(void)
+{
+    gpio_config_t io = {0};
+
+    // PGOOD / CHG (pull-up already external, but internal pull-up harmless)
+    io.mode = GPIO_MODE_INPUT;
+    io.pin_bit_mask = (1ULL << PIN_PGOOD) | (1ULL << PIN_CHG);
+    io.pull_up_en = 1;
+    io.pull_down_en = 0;
+    gpio_config(&io);
+
+    // Debug button (GPIO40)
+    io.pin_bit_mask = (1ULL << PIN_DBG_BUTTON);
+    io.pull_up_en = 1;
+    io.pull_down_en = 0;
+    gpio_config(&io);
+}
+
+static void adc_init(void)
+{
+    adc_oneshot_unit_init_cfg_t init_cfg = {
+        .unit_id = ADC_UNIT_1,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg, &s_adc1));
+
+    // GPIO4 and GPIO17 are on ADC1 channels (ESP32-S3: GPIO4=CH3, GPIO17=CH6)
+    adc_oneshot_chan_cfg_t chan_cfg = {
+        .atten = ADC_ATTEN_DB_11,    // 0..~3.3V目安
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_3, &chan_cfg)); // GPIO4
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_6, &chan_cfg)); // GPIO17
+
+    // キャリブレーション（未確定扱いでOK、取れたら使う）
+    adc_cali_curve_fitting_config_t cal_cfg = {
+        .unit_id = ADC_UNIT_1,
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    if (adc_cali_create_scheme_curve_fitting(&cal_cfg, &s_adc_cali) == ESP_OK) {
+        s_adc_cali_ok = true;
+    }
+}
+
+static int read_adc_mv_gpio4_slider(void)
+{
+    int raw = 0;
+    ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_3, &raw)); // GPIO4
+
+    int mv = 0;
+    if (s_adc_cali_ok) {
+        adc_cali_raw_to_voltage(s_adc_cali, raw, &mv);
+    } else {
+        // キャリブ無しの雑換算（目安）
+        mv = (raw * 3300) / 4095;
+    }
+    return mv; // 0..3300mV相当
+}
+
+static int read_adc_mv_gpio17_batvsense(void)
+{
+    int raw = 0;
+    ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_6, &raw)); // GPIO17
+
+    int mv = 0;
+    if (s_adc_cali_ok) {
+        adc_cali_raw_to_voltage(s_adc_cali, raw, &mv);
+    } else {
+        mv = (raw * 3300) / 4095;
+    }
+    return mv; // Vadc
+}
+
+// GPIO40押下ごとに: BATTERY -> EXT -> FAULT -> BATTERY
+static void debug_button_update(void)
+{
+    int now = gpio_get_level(PIN_DBG_BUTTON);
+    int64_t t = esp_timer_get_time();
+
+    if (now != s_btn_last) {
+        // デバウンス：変化から30ms以上経過で確定
+        if ((t - s_btn_last_change_us) > 30000) {
+            s_btn_last_change_us = t;
+            s_btn_last = now;
+
+            if (now == 0) { // falling edge = pressed
+                s_dbg_mode = (power_debug_mode_t)((s_dbg_mode + 1) % 4);
+            }
         }
     }
 }
@@ -294,8 +460,184 @@ static void boot_logo_anim(u8g2_t *u8g2)
     vTaskDelay(pdMS_TO_TICKS(2000));
 }
 
+static void draw_lightning(u8g2_t *u8g2, int x, int y)
+{
+    // 7x7 くらいの簡易⚡（線だけで描く）
+    // 中央に収まるように置く想定
+    u8g2_DrawLine(u8g2, x+4, y+0, x+1, y+4);
+    u8g2_DrawLine(u8g2, x+1, y+4, x+4, y+4);
+    u8g2_DrawLine(u8g2, x+4, y+4, x+2, y+7);
+    u8g2_DrawLine(u8g2, x+2, y+7, x+6, y+3);
+    u8g2_DrawLine(u8g2, x+6, y+3, x+4, y+3);
+}
+
+static void draw_battery_icon(u8g2_t *u8g2, const power_ui_t *p)
+{
+    // 点滅OFF時に「消える」対象があるので、消したい時は描かない。
+    // ただし枠点滅(Fault)とバー点滅(low)を分ける。
+
+    const bool fault = (p->state == PWR_STATE_FAULT);
+    const bool lowblink = (p->state == PWR_STATE_BAT_1_BLINK);
+    const bool charging = (p->state == PWR_STATE_CHARGING);
+
+    // 枠（Fault時は枠を点滅）
+    if (!fault || p->blink_on) {
+        u8g2_DrawFrame(u8g2, BAT_X, BAT_Y, BAT_W, BAT_H);
+        // nub
+        int nub_y = BAT_Y + (BAT_H - NUB_H) / 2;
+        u8g2_DrawBox(u8g2, BAT_X + BAT_W, nub_y, NUB_W, NUB_H);
+    }
+
+    if (fault) {
+        // 0 bars、枠点滅のみ
+        return;
+    }
+
+    if (charging) {
+        // ⚡のみ（アニメ無し）
+        int cx = BAT_X + (BAT_W - 7) / 2;
+        int cy = BAT_Y + (BAT_H - 7) / 2;
+        draw_lightning(u8g2, cx, cy);
+        return;
+    }
+
+    // バー描画（chargedは3固定、batteryはbarsに従う）
+    int bars = p->bars; // 0..3
+    if (bars < 0) bars = 0;
+    if (bars > 3) bars = 3;
+
+    // 内部の左上（バー基準位置）
+    int inner_x = BAT_X + 2;
+    int inner_y = BAT_Y + 2;
+
+    // 低電圧警告：1バーのみ、バーだけ点滅
+    bool draw_bars = true;
+    if (lowblink && !p->blink_on) {
+        draw_bars = false;
+    }
+
+    if (!draw_bars) return;
+
+    for (int i = 0; i < bars; i++) {
+        int bx = inner_x + i * (BAR_W + BAR_GAP);
+        u8g2_DrawBox(u8g2, bx, inner_y, BAR_W, BAR_H);
+    }
+}
+
+static power_ui_t s_pwr_ui = {0};
+
+static int calc_bars_from_vbat(int vbat_mv)
+{
+    if (vbat_mv >= V_TH_3_TO_2_MV) return 3;
+    if (vbat_mv >= V_TH_2_TO_1_MV) return 2;
+    if (vbat_mv >= V_TH_LOW_MV)    return 1;
+    return 1; // low warningでもバーは1（点滅で表現）
+}
+
+static void power_ui_update_500ms(power_ui_t *p)
+{
+    debug_button_update();
+
+    // 実ピン読み（デバッグ時は上書き）
+    bool ext_power = (gpio_get_level(PIN_PGOOD) == 0);
+    bool charging  = (gpio_get_level(PIN_CHG) == 0);
+
+    switch (s_dbg_mode) {
+        case PWR_MODE_BATTERY:
+            ext_power = false;
+            charging = false;   // どっちでも良いけど固定しとくと混ざらない
+            break;
+
+        case PWR_MODE_EXT_CHARGING:
+            ext_power = true;
+            charging  = true;
+            break;
+
+        case PWR_MODE_EXT_CHARGED:
+            ext_power = true;
+            charging  = false;
+            break;
+
+        case PWR_MODE_FAULT:
+            p->state = PWR_STATE_FAULT;
+            p->bars = 0;
+            return;
+    }
+
+    if (ext_power) {
+        if (charging) {
+            p->state = PWR_STATE_CHARGING; // ⚡
+            p->bars = 0;
+        } else {
+            p->state = PWR_STATE_CHARGED;  // 3バー固定
+            p->bars = 3;
+        }
+        return;
+    }
+
+    // ---- Battery mode ----
+    int slider_mv = read_adc_mv_gpio4_slider(); // 0..3300
+    int vbat_mv = 3300 + (slider_mv * 900) / 3300; // 3300..4200
+
+    int bars = calc_bars_from_vbat(vbat_mv);
+    p->bars = bars;
+
+    if (vbat_mv < V_TH_LOW_MV) {
+        p->state = PWR_STATE_BAT_1_BLINK;
+    } else if (bars == 1) {
+        p->state = PWR_STATE_BAT_1;
+    } else if (bars == 2) {
+        p->state = PWR_STATE_BAT_2;
+    } else {
+        p->state = PWR_STATE_BAT_3;
+    }
+}
+
+static led_state_t led_state_from_power_ui(const power_ui_t *p)
+{
+    switch (p->state) {
+        case PWR_STATE_FAULT:
+            return LED_ST_FAULT;
+
+        case PWR_STATE_CHARGING:
+            return LED_ST_CHARGING;
+
+        case PWR_STATE_CHARGED:
+            return LED_ST_CHARGED;
+
+        case PWR_STATE_BAT_1_BLINK:
+            return LED_ST_LOW_BATT;
+
+        case PWR_STATE_BAT_1:
+        case PWR_STATE_BAT_2:
+        case PWR_STATE_BAT_3:
+        default:
+            return LED_ST_SYSTEM_NORMAL;
+    }
+}
+
+static bool power_ui_is_fault(const power_ui_t *p) { return p->state == PWR_STATE_FAULT; }
+static bool power_ui_is_lowblink(const power_ui_t *p) { return p->state == PWR_STATE_BAT_1_BLINK; }
+
+// 点滅位相：描画のたびにこれを更新して使う
+static void power_ui_update_blink_phase(power_ui_t *p, int64_t now_ms)
+{
+    if (power_ui_is_fault(p)) {
+        // Fault 2Hz: 250ms ON/OFF
+        p->blink_on = ((now_ms / 250) % 2) == 0;
+    } else if (power_ui_is_lowblink(p)) {
+        // Low 1Hz: 500ms ON/OFF
+        p->blink_on = ((now_ms / 500) % 2) == 0;
+    } else {
+        p->blink_on = true;
+    }
+}
+
 static void draw_fixed_layout(u8g2_t *u8g2)
 {
+    // --- Yellow area (top): Battery + OCT: 0 ---
+    draw_battery_icon(u8g2, &s_pwr_ui);
+
     // ---- Cell size presets ----
     // Balanced: fits nicely with margins
     // (8,7,gap1) => grid_w=116, grid_h=47 in a 128x48 area
@@ -405,17 +747,34 @@ static void oled_task(void *arg)
 
     printf("[OLED] u8g2 init done. Drawing...\n");
 
-    // ---- draw once (fixed demo) ----
-    u8g2_FirstPage(&s_u8g2);
-    do {
-        draw_fixed_layout(&s_u8g2);
-    } while (u8g2_NextPage(&s_u8g2));
+    // ここから先でステータス表示を開始
+    gpio_init_inputs();
+    adc_init();
 
-    printf("[OLED] Fixed layout drawn. Sleeping...\n");
+    int64_t next_update_ms = 0;
 
-    // Keep task alive (no redraw needed)
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        int64_t now_ms = esp_timer_get_time() / 1000;
+
+        // 500ms周期で入力更新
+        if (now_ms >= next_update_ms) {
+            next_update_ms = now_ms + POWER_UPDATE_MS;
+            power_ui_update_500ms(&s_pwr_ui);
+
+            led_status_set_state(led_state_from_power_ui(&s_pwr_ui));
+        }
+
+
+        // 点滅位相更新（ループ頻度が高いほど滑らか）
+        power_ui_update_blink_phase(&s_pwr_ui, now_ms);
+
+        // 描画（点滅を見せるため定期リフレッシュ）
+        u8g2_FirstPage(&s_u8g2);
+        do {
+            draw_fixed_layout(&s_u8g2);
+        } while (u8g2_NextPage(&s_u8g2));
+
+        vTaskDelay(pdMS_TO_TICKS(50)); // 20fps相当（軽め）
     }
 }
 

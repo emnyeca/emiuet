@@ -15,12 +15,12 @@ typedef enum {
     LED_ST_CHARGED,
     LED_ST_LOW_BATT,
     LED_ST_SLEEP,
-
+    LED_ST_FAULT,          // ★追加（推奨）
     LED_ST_COUNT
 } led_state_t;
 
-// Start LED status task (includes auto demo: cycles states periodically)
 void led_status_start(void);
+void led_status_set_state(led_state_t st);
 
 #ifdef __cplusplus
 }
