@@ -1,0 +1,6 @@
+# デフォルト：テキストはLFで統一
+* text=auto eol=lf
+
+# Windows専用っぽいファイルはCRLFでもOK（必要なら）
+*.bat text eol=crlf
+*.cmd text eol=crlf
