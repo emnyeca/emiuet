@@ -1,0 +1,11 @@
+{
+  "folders": [
+    { "name": "EMIUET", "path": "." },
+    { "name": "Firmware", "path": "firmware" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "firmware": true
+    }
+  }
+}
