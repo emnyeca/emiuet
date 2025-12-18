@@ -1,0 +1,19 @@
+# KiCad files
+*.kicad_prl
+*~
+*.tmp
+*_backup/
+*backups
+*.bak
+fp-info-cache
+
+# ESP-IDF build outputs
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+*.bin
+*.elf
+# Compiled Python files
+
+#IDE stuff
+firmware/.vscode/
