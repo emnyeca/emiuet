@@ -1,0 +1,313 @@
+(footprint "L_APV_ANR5045_noSilk"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(descr "Inductor, APV, ANR5045, 5.0x5.0x4.5mm, (http://en.apvind.com/public/upload/20240407/3375c395e460caa8519b4d637d9113ce.pdf), generated with kicad-footprint-generator gen_inductor.py")
+	(tags "wirewound power shielded")
+	(property "Reference" "L2"
+		(at 3.45 1.64 270)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "15706628-d14f-4660-8160-6dca5ad3f096")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.1)
+				(italic yes)
+			)
+		)
+	)
+	(property "Value" "4.7μ"
+		(at -0.3 5.6875 0)
+		(layer "F.Fab")
+		(uuid "40367ced-475b-450b-8b00-3d76d948e32a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" "~"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "77e9202b-7ed5-41dd-9c72-8bad9c7149f0")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "Inductor, small symbol"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "125f9243-1520-46c2-8858-9d178569a892")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -2.66 2.2)
+		(end -2.66 1.95)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "b455838d-715a-43d9-823f-8a019e6074c2")
+	)
+	(fp_line
+		(start -2.61 -2.2)
+		(end 2.61 -2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "96348da2-8a46-42e9-8547-3f6506cad224")
+	)
+	(fp_line
+		(start -2.61 -1.95)
+		(end -2.61 -2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "a62ea589-e6f6-476b-a3f5-3bb6b1e58602")
+	)
+	(fp_line
+		(start 2.56 1.95)
+		(end 2.56 2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "79b70632-cae3-476d-90e7-3f6aec40969a")
+	)
+	(fp_line
+		(start 2.56 2.2)
+		(end -2.66 2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "dac8d90e-7efc-4ffe-848b-2f9c8bf6ed2d")
+	)
+	(fp_line
+		(start 2.61 -2.2)
+		(end 2.61 -1.95)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "Dwgs.User")
+		(uuid "ef5b6028-6027-4b95-b8cf-df21b3460b2f")
+	)
+	(fp_line
+		(start -2.8 -2.35)
+		(end -2.75 -2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "fe4b574e-ab17-4b2e-b1f9-3234ec581420")
+	)
+	(fp_line
+		(start -2.8 2.35)
+		(end -2.8 -2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "229232f3-41ba-4446-9aac-ea54d4b8b98d")
+	)
+	(fp_line
+		(start -2.75 -2.75)
+		(end 2.75 -2.75)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "cfb4cbcc-3731-49f8-be9a-0d69af3e5e78")
+	)
+	(fp_line
+		(start -2.75 -2.35)
+		(end -2.75 -2.75)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "34a296dd-5c8b-49c7-a634-29afc9e6cd7e")
+	)
+	(fp_line
+		(start -2.75 2.35)
+		(end -2.8 2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "4f1c21ce-6ef4-4218-a7dd-0c006ac3d114")
+	)
+	(fp_line
+		(start -2.75 2.75)
+		(end -2.75 2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "a528009f-10c1-424c-9e96-f52083eb91af")
+	)
+	(fp_line
+		(start 2.75 -2.75)
+		(end 2.75 -2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "b15eee07-cc9e-4807-9864-5f0b4a2b9a71")
+	)
+	(fp_line
+		(start 2.75 -2.35)
+		(end 2.8 -2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "01c67410-d9b3-4e9c-bbaf-142283c8b12d")
+	)
+	(fp_line
+		(start 2.75 2.35)
+		(end 2.75 2.75)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "eac08384-6db4-47db-8168-1d88d4efe21b")
+	)
+	(fp_line
+		(start 2.75 2.75)
+		(end -2.75 2.75)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "757cde71-455f-47c5-bcd4-5c43c09b9919")
+	)
+	(fp_line
+		(start 2.8 -2.35)
+		(end 2.8 2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "6f78ddc1-dc24-4f87-91a0-062ca8e5467f")
+	)
+	(fp_line
+		(start 2.8 2.35)
+		(end 2.75 2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "f7193b63-2883-4d57-b32f-9a3d0974911f")
+	)
+	(fp_rect
+		(start -2.15 -2.15)
+		(end 2.15 2.15)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "c1326c15-8751-40d4-aad2-3a57a8d77891")
+	)
+	(fp_text user "－"
+		(at 1.935 -2.3 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "88faf197-9259-4819-bc4f-58c0f3bd68e7")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(fp_text user "＋"
+		(at -3.105 -2.61 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "de081416-f789-400b-b1ad-5c7c0edcdff6")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+			(justify left bottom)
+		)
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "37e3b46a-0dcc-44f5-abdb-bf8dc9f573af")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd roundrect
+		(at -1.85 0)
+		(size 3 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(roundrect_rratio 0.178571)
+		(uuid "cf6a051b-e9de-4d36-b751-58c6500b7ada")
+	)
+	(pad "2" smd roundrect
+		(at 2 -0.05 90)
+		(size 1.35 3)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(roundrect_rratio 0.178571)
+		(uuid "1ba3b40b-a25a-404d-9f20-b79a3b577718")
+	)
+	(embedded_fonts no)
+	(model "${KICAD9_3DMODEL_DIR}/Inductor_SMD.3dshapes/L_APV_ANR5045.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

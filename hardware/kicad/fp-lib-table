@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "SSD1306")(type "KiCad")(uri "F:/グッズ/Emnyeca's Utility Box Series/EUB_Libraries/EUB_Libraries/footprints/SSD1306.pretty")(options "")(descr ""))
+  (lib (name "Eminuet Library")(type "KiCad")(uri "${KIPRJMOD}/Eminuet Library.pretty")(options "")(descr ""))
+)
