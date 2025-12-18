@@ -1,0 +1,10 @@
+
+# ESP-IDF build outputs
+build/
+sdkconfig.old
+*.bin
+*.elf
+# Compiled Python files
+
+#IDE stuff
+.vscode/
