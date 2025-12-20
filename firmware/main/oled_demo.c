@@ -24,6 +24,9 @@
 
 #include "led_status.h"
 
+#include "esp_log.h"
+
+
 // -------------------------
 // Pin / I2C config
 // -------------------------
@@ -435,6 +438,7 @@ static void draw_boot_screen(u8g2_t *u8g2)
 
 static void boot_logo_anim(u8g2_t *u8g2)
 {
+    ESP_LOGI("BOOT", "boot anim start");
     const int frames = 22;
     const int delay_ms = 30;
 
@@ -458,6 +462,7 @@ static void boot_logo_anim(u8g2_t *u8g2)
     }
 
     vTaskDelay(pdMS_TO_TICKS(2000));
+    ESP_LOGI("BOOT", "boot anim end");
 }
 
 static void draw_lightning(u8g2_t *u8g2, int x, int y)
