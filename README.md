@@ -78,6 +78,9 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 **DIN MIDI OUT is intentionally not supported**  
 and will not be added in this project.
 
+### PIN and GPIO
+Pin assignment is defined in docs/pinout-v3.md.
+
 ---
 
 ## UI & Control Logic
