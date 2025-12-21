@@ -19,6 +19,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "slider.h"
 
 #include "esp_timer.h"
 
@@ -260,15 +261,24 @@ static void adc_init(void)
         .unit_id = ADC_UNIT_1,
         .ulp_mode = ADC_ULP_MODE_DISABLE,
     };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg, &s_adc1));
+    esp_err_t ret = adc_oneshot_new_unit(&init_cfg, &s_adc1);
+    if (ret != ESP_OK) {
+        ESP_LOGW("OLED", "adc_oneshot_new_unit failed: %s; falling back to slider proxy",
+                 esp_err_to_name(ret));
+        s_adc1 = NULL;
+        s_adc_cali_ok = false;
+        return;
+    }
 
     // GPIO4 and GPIO17 are on ADC1 channels (ESP32-S3: GPIO4=CH3, GPIO17=CH6)
     adc_oneshot_chan_cfg_t chan_cfg = {
         .atten = ADC_ATTEN_DB_11,    // 0..~3.3V目安
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_3, &chan_cfg)); // GPIO4
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_6, &chan_cfg)); // GPIO17
+    if (s_adc1) {
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_3, &chan_cfg)); // GPIO4
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_6, &chan_cfg)); // GPIO17
+    }
 
     // キャリブレーション（未確定扱いでOK、取れたら使う）
     adc_cali_curve_fitting_config_t cal_cfg = {
@@ -283,6 +293,13 @@ static void adc_init(void)
 
 static int read_adc_mv_gpio4_slider(void)
 {
+    if (s_adc1 == NULL) {
+        /* Fallback: use slider ADC reading as proxy (0..1023 -> 0..3300mV)
+         * This allows OLED to run when another module already owns ADC. */
+        uint16_t raw = slider_read_pitchbend();
+        return (raw * 3300) / 1023;
+    }
+
     int raw = 0;
     ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_3, &raw)); // GPIO4
 
@@ -290,7 +307,6 @@ static int read_adc_mv_gpio4_slider(void)
     if (s_adc_cali_ok) {
         adc_cali_raw_to_voltage(s_adc_cali, raw, &mv);
     } else {
-        // キャリブ無しの雑換算（目安）
         mv = (raw * 3300) / 4095;
     }
     return mv; // 0..3300mV相当
@@ -298,6 +314,13 @@ static int read_adc_mv_gpio4_slider(void)
 
 static int read_adc_mv_gpio17_batvsense(void)
 {
+    if (s_adc1 == NULL) {
+        /* No ADC unit available; approximate battery from slider proxy. */
+        uint16_t raw = slider_read_pitchbend();
+        int slider_mv = (raw * 3300) / 1023;
+        return 3300 + (slider_mv * 900) / 3300; // same formula as before
+    }
+
     int raw = 0;
     ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_6, &raw)); // GPIO17
 
@@ -581,8 +604,9 @@ static void power_ui_update_500ms(power_ui_t *p)
     }
 
     // ---- Battery mode ----
-    int slider_mv = read_adc_mv_gpio4_slider(); // 0..3300
-    int vbat_mv = 3300 + (slider_mv * 900) / 3300; // 3300..4200
+    /* Use ADC GPIO17 (battery sense) for vbat. GPIO4 is reserved for the
+     * debug slider/pitch-bend and should not be used for battery calculation. */
+    int vbat_mv = read_adc_mv_gpio17_batvsense(); // read real battery sense (mV)
 
     int bars = calc_bars_from_vbat(vbat_mv);
     p->bars = bars;

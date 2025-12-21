@@ -32,7 +32,7 @@ static void board_late_init_task(void *arg)
      */
     matrix_midi_bridge_start(MATRIX_INITIAL_DISCARD_CYCLES);
     /* Start slider polling task (pitch-bend) */
-    // slider_task_start();
+    slider_task_start();
 
     /* One-shot task */
     vTaskDelete(NULL);

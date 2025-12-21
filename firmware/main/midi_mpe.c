@@ -7,7 +7,7 @@
 static const char *TAG = "midi_mpe";
 
 static bool g_mpe_enabled = false;
-static int g_last_active_row = -1; /* -1 == no last-active row (reset state) */
+static int g_last_active_row = 3; /* -1 == no last-active row (reset state) */
 static uint8_t g_mpe_base_channel = 1; /* default MPE base channel */
 
 /* When true, note activity will NOT update g_last_active_row. This is used

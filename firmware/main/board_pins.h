@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include "driver/gpio.h"
+#include "soc/adc_channel.h"
 
 /* IntelliSense / tooling fallback:
  * Some VS Code setups don't pick up ESP-IDF gpio enums correctly.
@@ -56,6 +57,25 @@
 #define PIN_SLIDER_PB          GPIO_NUM_1    /* Pitch Bend (upward only) */
 #define PIN_SLIDER_MOD         GPIO_NUM_2    /* CC#1 */
 #define PIN_SLIDER_VEL         GPIO_NUM_4    /* Velocity (NoteOn sampled) */
+
+/* ADC channel mapping for sliders (ESP32-S3 ADC channel enums)
+ * NOTE: These macros are used by `slider.c` to configure ADC channels.
+ * Adjust if your board/SDK mapping differs. Typical mapping on ESP32-S3:
+ *  - GPIO1  -> ADC_CHANNEL_1
+ *  - GPIO2  -> ADC_CHANNEL_2
+ *  - GPIO4  -> ADC_CHANNEL_3
+ */
+#ifndef SLIDER_PB_ADC_CHANNEL
+#define SLIDER_PB_ADC_CHANNEL  ADC_CHANNEL_0
+#endif
+
+#ifndef SLIDER_MOD_ADC_CHANNEL
+#define SLIDER_MOD_ADC_CHANNEL ADC_CHANNEL_1
+#endif
+
+#ifndef SLIDER_VEL_ADC_CHANNEL
+#define SLIDER_VEL_ADC_CHANNEL ADC_CHANNEL_3
+#endif
 
 /* =========================================================
  * UI Elements
