@@ -11,16 +11,25 @@ static void board_late_init_task(void *arg)
 {
     (void)arg;
 
+
     /* Strapping safety delay */
     vTaskDelay(pdMS_TO_TICKS(MATRIX_SCAN_START_DELAY_MS));
 
-    /* Now it's safe to touch matrix pins (GPIO45/46) */
-    board_pins_init_matrix_late();
+    /* Stage 1: configure rows only to avoid touching strapping pins */
+    board_pins_init_matrix_prepare();
 
-    /* Start matrix -> MIDI bridge */
-    extern void matrix_midi_bridge_start(void);
+    /* Short pause before enabling column inputs */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    /* Stage 2: enable column inputs (now safe) */
+    board_pins_enable_matrix_columns();
+
+    /* Start matrix -> MIDI bridge with initial discard cycles to avoid
+     * reacting to boot-time strapping states or keys held during boot.
+     */
+    extern void matrix_midi_bridge_start(int discard_cycles);
     extern void slider_task_start(void);
-    matrix_midi_bridge_start();
+    matrix_midi_bridge_start(MATRIX_INITIAL_DISCARD_CYCLES);
     /* Start slider polling task (pitch-bend) */
     slider_task_start();
 

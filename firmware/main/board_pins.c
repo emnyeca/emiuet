@@ -87,21 +87,29 @@ void board_pins_init_early(void)
      * I2C pins are configured by the I2C driver / u8g2 layer.
      */
 }
-
-void board_pins_init_matrix_late(void)
+void board_pins_init_matrix_prepare(void)
 {
-    /* Matrix rows: outputs. Default HIGH (inactive) is common for row scanning.
-     * If your matrix hardware expects opposite polarity, flip initial_level and scan logic.
+    /* Configure matrix rows as outputs only. Keep columns untouched for now
+     * to avoid changing strapping pin state until we are ready.
      */
     for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
         configure_output(MATRIX_ROW_PINS[r], 1);
     }
+}
 
-    /* Matrix cols: inputs.
-     * We avoid enabling internal pull-ups here by default, because GPIO45/46 are strapping pins.
-     * Your matrix will likely have external resistors/diodes; if not, decide pull strategy carefully.
+void board_pins_enable_matrix_columns(void)
+{
+    /* Now enable column inputs. We deliberately avoid enabling internal pull-ups
+     * because some column pins are used as strapping pins at boot; hardware
+     * should provide proper pull resistors. Configure as no-pull by default.
      */
     for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
         configure_input_no_pull(MATRIX_COL_PINS[c]);
     }
+}
+
+void board_pins_init_matrix_late(void)
+{
+    board_pins_init_matrix_prepare();
+    board_pins_enable_matrix_columns();
 }

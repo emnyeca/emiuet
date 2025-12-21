@@ -96,4 +96,19 @@ extern const gpio_num_t MATRIX_COL_PINS[MATRIX_NUM_COLS];
  * - Late: matrix pins (after boot delay) to avoid strapping issues.
  */
 void board_pins_init_early(void);
+
+/* Matrix init is two-stage to protect strapping pins:
+ *  - board_pins_init_matrix_prepare(): configure row pins (outputs) only
+ *  - board_pins_enable_matrix_columns(): configure column pins (inputs)
+ *  - board_pins_init_matrix_late(): convenience wrapper that does both
+ */
+void board_pins_init_matrix_prepare(void);
+void board_pins_enable_matrix_columns(void);
 void board_pins_init_matrix_late(void);
+
+/* Number of full matrix cycles to discard after enabling columns to avoid
+ * reacting to strapping pin states or boot-time presses. Configure as needed.
+ */
+#ifndef MATRIX_INITIAL_DISCARD_CYCLES
+#define MATRIX_INITIAL_DISCARD_CYCLES 5
+#endif

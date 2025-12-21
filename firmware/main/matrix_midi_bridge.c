@@ -33,12 +33,12 @@ static void on_key_event(int row, int col, bool pressed)
     }
 }
 
-void matrix_midi_bridge_start(void)
+void matrix_midi_bridge_start(int discard_cycles)
 {
     midi_out_init();
     midi_mpe_init();
-    matrix_scan_start(on_key_event);
-    ESP_LOGI(TAG, "matrix->MIDI bridge started");
+    matrix_scan_start(on_key_event, discard_cycles);
+    ESP_LOGI(TAG, "matrix->MIDI bridge started (discard_cycles=%d)", discard_cycles);
 }
 
 void matrix_midi_bridge_stop(void)

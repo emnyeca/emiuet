@@ -14,8 +14,12 @@ extern void esp_rom_delay_us(uint32_t us);
 static matrix_event_cb_t g_cb = NULL;
 static TaskHandle_t g_scan_task = NULL;
 
-/* Simple debounce state */
+/* per-key debounce counters and stable state */
 static uint8_t key_state[MATRIX_NUM_ROWS][MATRIX_NUM_COLS];
+static bool stable_pressed[MATRIX_NUM_ROWS][MATRIX_NUM_COLS];
+
+/* Number of full matrix cycles to discard after start */
+static int g_discard_cycles = 0;
 
 static void select_row(int row)
 {
@@ -48,31 +52,52 @@ static void scan_task(void *arg)
                 /* Assuming active-low read on columns when key pressed */
                 bool pressed = (level == 0);
 
+                /* update counter with saturation */
                 if (pressed) {
-                    if (key_state[r][c] < 0xFF) key_state[r][c]++;
+                    if (key_state[r][c] < 0xFE) key_state[r][c]++;
                 } else {
                     if (key_state[r][c] > 0) key_state[r][c]--;
                 }
 
-                if (key_state[r][c] == 3 && g_cb) {
-                    g_cb(r, c, true);
-                } else if (key_state[r][c] == 2 && !pressed && g_cb) {
-                    g_cb(r, c, false);
+                /* If we are still in discard period, don't change stable state */
+                if (g_discard_cycles > 0) {
+                    continue;
+                }
+
+                /* Debounce transition logic: only trigger on change of stable_pressed */
+                if (!stable_pressed[r][c] && key_state[r][c] >= MATRIX_DEBOUNCE_COUNT) {
+                    stable_pressed[r][c] = true;
+                    if (g_cb) g_cb(r, c, true);
+                } else if (stable_pressed[r][c] && key_state[r][c] == 0) {
+                    stable_pressed[r][c] = false;
+                    if (g_cb) g_cb(r, c, false);
                 }
             }
 
             deselect_rows();
         }
 
+        /* completed one full matrix cycle; if discarding, decrement counter */
+        if (g_discard_cycles > 0) {
+            g_discard_cycles--;
+            if (g_discard_cycles == 0) {
+                /* reset counters and stable states to avoid acting on transient bootstrap state */
+                memset(key_state, 0, sizeof(key_state));
+                memset(stable_pressed, 0, sizeof(stable_pressed));
+            }
+        }
+
         vTaskDelay(delay);
     }
 }
 
-void matrix_scan_start(matrix_event_cb_t cb)
+void matrix_scan_start(matrix_event_cb_t cb, int discard_cycles)
 {
     if (g_scan_task) return;
     g_cb = cb;
     memset(key_state, 0, sizeof(key_state));
+    memset(stable_pressed, 0, sizeof(stable_pressed));
+    g_discard_cycles = (discard_cycles > 0) ? discard_cycles : 0;
     xTaskCreate(scan_task, "matrix_scan", 4096, NULL, 10, &g_scan_task);
 }
 

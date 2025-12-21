@@ -10,8 +10,12 @@
  */
 
 #define MATRIX_DEBOUNCE_MS 5
+/* Number of consecutive stable reads required for state change */
+#define MATRIX_DEBOUNCE_COUNT 3
 
 typedef void (*matrix_event_cb_t)(int row, int col, bool pressed);
 
-void matrix_scan_start(matrix_event_cb_t cb);
+/* Start scanning. discard_cycles: number of full matrix cycles to ignore after start
+ * (used to avoid acting on strapping-pin states during boot). */
+void matrix_scan_start(matrix_event_cb_t cb, int discard_cycles);
 void matrix_scan_stop(void);
