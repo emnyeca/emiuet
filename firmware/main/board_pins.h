@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include "driver/gpio.h"
+#include "soc/adc_channel.h"
 
 /* IntelliSense / tooling fallback:
  * Some VS Code setups don't pick up ESP-IDF gpio enums correctly.
@@ -57,6 +58,25 @@
 #define PIN_SLIDER_MOD         GPIO_NUM_2    /* CC#1 */
 #define PIN_SLIDER_VEL         GPIO_NUM_4    /* Velocity (NoteOn sampled) */
 
+/* ADC channel mapping for sliders (ESP32-S3 ADC channel enums)
+ * NOTE: These macros are used by `slider.c` to configure ADC channels.
+ * Adjust if your board/SDK mapping differs. Typical mapping on ESP32-S3:
+ *  - GPIO1  -> ADC_CHANNEL_1
+ *  - GPIO2  -> ADC_CHANNEL_2
+ *  - GPIO4  -> ADC_CHANNEL_3
+ */
+#ifndef SLIDER_PB_ADC_CHANNEL
+#define SLIDER_PB_ADC_CHANNEL  ADC_CHANNEL_0
+#endif
+
+#ifndef SLIDER_MOD_ADC_CHANNEL
+#define SLIDER_MOD_ADC_CHANNEL ADC_CHANNEL_1
+#endif
+
+#ifndef SLIDER_VEL_ADC_CHANNEL
+#define SLIDER_VEL_ADC_CHANNEL ADC_CHANNEL_3
+#endif
+
 /* =========================================================
  * UI Elements
  * ========================================================= */
@@ -96,4 +116,26 @@ extern const gpio_num_t MATRIX_COL_PINS[MATRIX_NUM_COLS];
  * - Late: matrix pins (after boot delay) to avoid strapping issues.
  */
 void board_pins_init_early(void);
+
+/* Matrix init is two-stage to protect strapping pins:
+ *  - board_pins_init_matrix_prepare(): configure row pins (outputs) only
+ *  - board_pins_enable_matrix_columns(): configure column pins (inputs)
+ *  - board_pins_init_matrix_late(): convenience wrapper that does both
+ */
+void board_pins_init_matrix_prepare(void);
+void board_pins_enable_matrix_columns(void);
 void board_pins_init_matrix_late(void);
+
+/* Number of full matrix cycles to discard after enabling columns to avoid
+ * reacting to strapping pin states or boot-time presses. Configure as needed.
+ */
+#ifndef MATRIX_INITIAL_DISCARD_CYCLES
+#define MATRIX_INITIAL_DISCARD_CYCLES 5
+#endif
+
+/* Column internal pull-up selection: default ON for safer prototype behavior.
+ * Set to 0 if external pull resistors are present and internal pulls are undesired.
+ */
+#ifndef MATRIX_COL_INTERNAL_PULLUP
+#define MATRIX_COL_INTERNAL_PULLUP 1
+#endif
