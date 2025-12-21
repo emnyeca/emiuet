@@ -99,12 +99,16 @@ void board_pins_init_matrix_prepare(void)
 
 void board_pins_enable_matrix_columns(void)
 {
-    /* Now enable column inputs. We deliberately avoid enabling internal pull-ups
-     * because some column pins are used as strapping pins at boot; hardware
-     * should provide proper pull resistors. Configure as no-pull by default.
+    /* Now enable column inputs. By default we enable internal pull-ups for
+     * prototype safety; override MATRIX_COL_INTERNAL_PULLUP to 0 if hardware
+     * provides external resistors.
      */
     for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+#if MATRIX_COL_INTERNAL_PULLUP
+        configure_input_with_pullup(MATRIX_COL_PINS[c]);
+#else
         configure_input_no_pull(MATRIX_COL_PINS[c]);
+#endif
     }
 }
 

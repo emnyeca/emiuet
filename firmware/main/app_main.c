@@ -7,6 +7,9 @@
 #include "led_status.h"
 #include "oled_demo.h"
 
+#include "matrix_midi_bridge.h"
+#include "slider.h"
+
 static void board_late_init_task(void *arg)
 {
     (void)arg;
@@ -27,11 +30,9 @@ static void board_late_init_task(void *arg)
     /* Start matrix -> MIDI bridge with initial discard cycles to avoid
      * reacting to boot-time strapping states or keys held during boot.
      */
-    extern void matrix_midi_bridge_start(int discard_cycles);
-    extern void slider_task_start(void);
     matrix_midi_bridge_start(MATRIX_INITIAL_DISCARD_CYCLES);
     /* Start slider polling task (pitch-bend) */
-    slider_task_start();
+    // slider_task_start();
 
     /* One-shot task */
     vTaskDelete(NULL);

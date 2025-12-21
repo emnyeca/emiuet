@@ -112,3 +112,10 @@ void board_pins_init_matrix_late(void);
 #ifndef MATRIX_INITIAL_DISCARD_CYCLES
 #define MATRIX_INITIAL_DISCARD_CYCLES 5
 #endif
+
+/* Column internal pull-up selection: default ON for safer prototype behavior.
+ * Set to 0 if external pull resistors are present and internal pulls are undesired.
+ */
+#ifndef MATRIX_COL_INTERNAL_PULLUP
+#define MATRIX_COL_INTERNAL_PULLUP 1
+#endif

@@ -20,6 +20,7 @@ static bool stable_pressed[MATRIX_NUM_ROWS][MATRIX_NUM_COLS];
 
 /* Number of full matrix cycles to discard after start */
 static int g_discard_cycles = 0;
+static bool g_capture_after_discard = false;
 
 static void select_row(int row)
 {
@@ -39,9 +40,28 @@ static void deselect_rows(void)
 static void scan_task(void *arg)
 {
     (void)arg;
-    const TickType_t delay = pdMS_TO_TICKS(MATRIX_DEBOUNCE_MS);
+    TickType_t delay = pdMS_TO_TICKS(MATRIX_DEBOUNCE_MS);
+    if (delay == 0) delay = 1;
 
     while (1) {
+        /* If requested, perform a capture pass immediately after discard to
+         * adopt the current physical state as initial stable_pressed values.
+         */
+        if (g_capture_after_discard) {
+            for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
+                select_row(r);
+                esp_rom_delay_us(50);
+                for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+                    int level = gpio_get_level(MATRIX_COL_PINS[c]);
+                    bool pressed = (level == 0);
+                    stable_pressed[r][c] = pressed;
+                    key_state[r][c] = pressed ? MATRIX_DEBOUNCE_COUNT : 0;
+                }
+                deselect_rows();
+            }
+            g_capture_after_discard = false;
+        }
+
         for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
             select_row(r);
             /* small settle */
@@ -52,16 +72,16 @@ static void scan_task(void *arg)
                 /* Assuming active-low read on columns when key pressed */
                 bool pressed = (level == 0);
 
+                /* If we are still in discard period, skip counter updates entirely */
+                if (g_discard_cycles > 0) {
+                    continue;
+                }
+
                 /* update counter with saturation */
                 if (pressed) {
                     if (key_state[r][c] < 0xFE) key_state[r][c]++;
                 } else {
                     if (key_state[r][c] > 0) key_state[r][c]--;
-                }
-
-                /* If we are still in discard period, don't change stable state */
-                if (g_discard_cycles > 0) {
-                    continue;
                 }
 
                 /* Debounce transition logic: only trigger on change of stable_pressed */
@@ -75,15 +95,15 @@ static void scan_task(void *arg)
             }
 
             deselect_rows();
+            taskYIELD();
         }
 
         /* completed one full matrix cycle; if discarding, decrement counter */
         if (g_discard_cycles > 0) {
             g_discard_cycles--;
             if (g_discard_cycles == 0) {
-                /* reset counters and stable states to avoid acting on transient bootstrap state */
-                memset(key_state, 0, sizeof(key_state));
-                memset(stable_pressed, 0, sizeof(stable_pressed));
+                /* request to capture current physical state on next loop */
+                g_capture_after_discard = true;
             }
         }
 
