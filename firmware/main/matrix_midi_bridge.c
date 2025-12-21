@@ -10,11 +10,7 @@ static const char *TAG = "matrix_midi";
  */
 static const uint8_t string_base_note[6] = {64, 59, 55, 50, 45, 40};
 
-/* Base MIDI channel for non-MPE mode */
-#define MIDI_DEFAULT_CHANNEL 0
-
-/* MPE base channel (0-based) when enabled; maps row->channel = MPE_BASE + row */
-#define MIDI_MPE_BASE_CHANNEL 1
+/* Base MIDI channel for non-MPE mode - use midi_mpe_default_channel() */
 
 static void on_key_event(int row, int col, bool pressed)
 {
@@ -25,10 +21,10 @@ static void on_key_event(int row, int col, bool pressed)
         /* remember activity for MPE pitch-bend routing */
         midi_mpe_note_activity(row);
 
-        uint8_t ch = midi_mpe_is_enabled() ? (MIDI_MPE_BASE_CHANNEL + row) : MIDI_DEFAULT_CHANNEL;
+        uint8_t ch = midi_mpe_is_enabled() ? midi_mpe_channel_for_row(row) : midi_mpe_default_channel();
         midi_send_note_on(ch, note, 100);
     } else {
-        uint8_t ch = midi_mpe_is_enabled() ? (MIDI_MPE_BASE_CHANNEL + row) : MIDI_DEFAULT_CHANNEL;
+        uint8_t ch = midi_mpe_is_enabled() ? midi_mpe_channel_for_row(row) : midi_mpe_default_channel();
         midi_send_note_off(ch, note, 0);
     }
 }

@@ -8,6 +8,10 @@ static const char *TAG = "midi_mpe";
 
 static bool g_mpe_enabled = false;
 static int g_last_active_row = 0;
+static uint8_t g_mpe_base_channel = 1; /* default MPE base channel */
+
+/* default non-MPE channel (0-based) */
+static const uint8_t g_default_channel = 0;
 
 void midi_mpe_init(void)
 {
@@ -36,14 +40,38 @@ void midi_mpe_note_activity(int row)
  */
 void midi_mpe_apply_pitchbend(uint16_t bend_value)
 {
-    uint8_t channel;
+    uint8_t channel = g_default_channel;
     if (g_mpe_enabled) {
-        /* Map last active row to MPE channel base (MIDI_MPE_BASE_CHANNEL defined in bridge). */
-        channel = (uint8_t)(1 + g_last_active_row);
-    } else {
-        channel = 0; /* default channel 0 */
+        channel = midi_mpe_channel_for_row(g_last_active_row);
     }
 
     midi_send_pitchbend(channel, bend_value);
     ESP_LOGD(TAG, "apply_pitchbend ch=%d value=%d", channel, bend_value);
+}
+
+void midi_mpe_set_base_channel(uint8_t base)
+{
+    /* Accept 0..15 (0-based channels) but typical MPE uses 1-based numbering in UI.
+     * We store 0-based.
+     */
+    g_mpe_base_channel = base;
+}
+
+uint8_t midi_mpe_get_base_channel(void)
+{
+    return g_mpe_base_channel;
+}
+
+uint8_t midi_mpe_channel_for_row(int row)
+{
+    if (row < 0) return g_default_channel;
+    /* Map row 0.. to base..base+rows-1; keep within 0..15 */
+    uint32_t ch = (uint32_t)g_mpe_base_channel + (uint32_t)row;
+    if (ch > 15) ch = 15;
+    return (uint8_t)ch;
+}
+
+uint8_t midi_mpe_default_channel(void)
+{
+    return g_default_channel;
 }
