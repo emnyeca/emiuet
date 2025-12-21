@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Slider driver
  * - Reads ADC for pitch/mod/vel sliders
@@ -17,3 +18,6 @@ uint16_t slider_read_velocity(void);
  * pitch-bend messages via `midi_mpe_apply_pitchbend`. Call after midi/init.
  */
 void slider_task_start(void);
+
+/* Return true if slider ADC is available and initialized */
+bool slider_is_enabled(void);

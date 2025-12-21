@@ -21,6 +21,7 @@ static float vel_ema = 0.0f;
 #if HAVE_ADC_ONESHOT
 static adc_oneshot_unit_handle_t adc_unit_handle = NULL;
 static bool adc_initialized = false;
+static bool s_enabled = false;
 
 void slider_init(void)
 {
@@ -56,8 +57,10 @@ void slider_init(void)
 #endif
 
     adc_initialized = true;
+    s_enabled = true;
 #else
     ESP_LOGW(TAG, "No SLIDER_* ADC channel macros defined; sliders disabled");
+    s_enabled = false;
 #endif
 }
 
@@ -121,3 +124,12 @@ uint16_t slider_read_mod(void) { return 0; }
 uint16_t slider_read_velocity(void) { return 0; }
 
 #endif
+
+bool slider_is_enabled(void)
+{
+#if HAVE_ADC_ONESHOT
+    return s_enabled;
+#else
+    return false;
+#endif
+}

@@ -49,8 +49,11 @@ void slider_task_start(void)
     if (s_task) return;
 
     slider_init();
+    if (!slider_is_enabled()) {
+        ESP_LOGW(TAG, "slider disabled; slider task not started");
+        return;
+    }
 
-    /* ここが重要：sliderが無効なら起動しない（次の節で実装） */
     xTaskCreate(slider_task, "slider_task", 4096, NULL, 6, &s_task);
     ESP_LOGI(TAG, "slider task started");
 }
