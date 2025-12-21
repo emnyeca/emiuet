@@ -21,6 +21,8 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "slider.h"
 
+#include "matrix_scan.h"
+
 #include "esp_timer.h"
 
 #include "led_status.h"
@@ -690,39 +692,28 @@ static void draw_fixed_layout(u8g2_t *u8g2)
     // boundary line at y=15 (optional, but nice)
     u8g2_DrawHLine(u8g2, 0, YELLOW_H - 1, OLED_W);
 
-        // Cmaj7 (open) = x32000
-    // rows: 0=1弦(高E) ... 5=6弦(低E)
-    static const int8_t fingering_cmaj7[6] = {
-         3, // 1弦 ミュート
-         5, // 2弦
-         4, // 3弦
-         5, // 4弦
-         3, // 5弦
-        -1  // 6弦
-    };
+        // --- Blue area: 6x13 ---
+        // Draw current matrix pressed state (real-time) instead of fixed demo chords.
+        for (int r = 0; r < GRID_ROWS; r++) {
+            for (int c = 0; c < GRID_COLS; c++) {
+                int x = col_to_x(&g, c);
+                int y = g.origin_y + r * (g.cell_h + g.gap_y);
 
-    // --- Blue area: 6x13 ---
-    for (int r = 0; r < GRID_ROWS; r++) {
-        for (int c = 0; c < GRID_COLS; c++) {
-            int x = col_to_x(&g, c);
-            int y = g.origin_y + r * (g.cell_h + g.gap_y);
+                bool on = matrix_scan_is_pressed(r, c);
 
-            int fret = fingering_cmaj7[r];
-            bool on = (fret >= 0 && fret == c);
+                bool marker = is_marker_fret(c);
+                bool draw_marker_line = (r != GRID_ROWS - 1);
 
-            bool marker = is_marker_fret(c);
-            bool draw_marker_line = (r != GRID_ROWS - 1);
-
-            draw_cell_doublebox_fill(
-                u8g2,
-                x, y,
-                g.cell_w, g.cell_h,
-                on,
-                marker,
-                draw_marker_line
-            );
+                draw_cell_doublebox_fill(
+                    u8g2,
+                    x, y,
+                    g.cell_w, g.cell_h,
+                    on,
+                    marker,
+                    draw_marker_line
+                );
+            }
         }
-    }
 
     // Optional: outer border for debugging layout
     // u8g2_DrawFrame(u8g2, 0, 0, OLED_W, OLED_H);
