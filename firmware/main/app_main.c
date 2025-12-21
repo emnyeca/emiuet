@@ -17,6 +17,13 @@ static void board_late_init_task(void *arg)
     /* Now it's safe to touch matrix pins (GPIO45/46) */
     board_pins_init_matrix_late();
 
+    /* Start matrix -> MIDI bridge */
+    extern void matrix_midi_bridge_start(void);
+    extern void slider_task_start(void);
+    matrix_midi_bridge_start();
+    /* Start slider polling task (pitch-bend) */
+    slider_task_start();
+
     /* One-shot task */
     vTaskDelete(NULL);
 }
