@@ -17,3 +17,23 @@ void midi_mpe_apply_pitchbend(uint16_t bend_value);
 
 /* Register which string (row) was last active (0..5) */
 void midi_mpe_note_activity(int row);
+
+/* MPE base channel management
+ * - base channel is the lowest MIDI channel used for MPE string mapping
+ * - e.g., base=1 maps rows 0..5 to channels base..base+5
+ */
+void midi_mpe_set_base_channel(uint8_t base);
+uint8_t midi_mpe_get_base_channel(void);
+uint8_t midi_mpe_channel_for_row(int row);
+uint8_t midi_mpe_default_channel(void);
+
+/* Additional helpers for PB target management */
+/* Return last-active channel (0..15), or -1 if none */
+int midi_mpe_get_last_active_channel(void);
+
+/* Lock/unlock pitch-bend target. When locked, note activity will not
+ * change the PB target (useful while a bend is in progress). */
+void midi_mpe_lock_pitchbend_target(bool locked);
+
+/* Reset the PB target so the next PB will pick the then-last-active string */
+void midi_mpe_reset_pitchbend_target(void);
