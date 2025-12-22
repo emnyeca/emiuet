@@ -75,6 +75,12 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 - BLE-MIDI
 - TRS MIDI (Type-A, 3.5 mm)
 
+Firmware policy (instrument-first):
+- Musical logic must never block on transport I/O; all backends enqueue with 0-wait and send from dedicated tasks.
+- Realtime priority is TRS > USB = BLE (simultaneous output is allowed; no fallback behavior is assumed).
+- USB aims for reliable delivery via a large discrete-event queue (default 1024) so normal operation achieves `drop_queue=0`.
+- Continuous controllers (Pitch Bend / CC#1) are coalesced per-channel; discrete events preserve ordering.
+
 Note on TRS MIDI (firmware):
 - The TRS MIDI OUT backend uses UART 31250 bps on `PIN_MIDI_OUT_TX` (UART0 TX).
 - If you enable TRS UART output in Kconfig, move the ESP-IDF console off UART0

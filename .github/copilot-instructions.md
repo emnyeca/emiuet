@@ -55,3 +55,10 @@ Include:
 - How it preserves timing stability (input scan, MIDI output, UI)
 
 Avoid broad rewrites. Prefer minimal diffs.
+
+## ESP-IDF Command Execution (IMPORTANT)
+
+- Do NOT attempt to run ESP-IDF commands from non-ESP-IDF shells.
+- Do NOT ask to run `idf.py build/flash/monitor`.
+- Assume the user will run ESP-IDF commands in the ESP-IDF terminal and paste logs when needed.
+- When a build/flash/monitor step is required for validation, request only the minimal command and the relevant output sections.

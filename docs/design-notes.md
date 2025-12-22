@@ -182,6 +182,20 @@ The firmware is structured so that:
 
 Real-time behavior is prioritized over architectural elegance.
 
+### 7.x MIDI Output (Non-Blocking + Coalescing)
+
+As a musical instrument, Emiuet prioritizes stable, low-latency MIDI output.
+However, the input/musical logic (matrix scan / slider / MPE) must never block on I/O.
+
+Implementation intent:
+- Each transport (TRS UART / USB / BLE) has a dedicated sender task and a discrete-event queue.
+- `midi_out_send_*()` must return immediately; it only enqueues.
+- Continuous controls are coalesced to prevent queue saturation:
+	- Pitch Bend: latest value wins (per MIDI channel)
+	- CC#1 (Modulation): latest value wins (per MIDI channel)
+- Output realtime priority among transports is TRS > USB = BLE.
+	Simultaneous output is allowed.
+
 ---
 
 ## 7.1 USB-MIDI Bring-up Note (DevKit vs Prototype)

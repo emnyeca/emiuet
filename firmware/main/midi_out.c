@@ -26,11 +26,11 @@ static inline uint8_t clamp_ch(uint8_t ch) { return (ch > 15) ? 15 : ch; }
 static bool send_bytes_to_routes(uint32_t routes, const uint8_t *bytes, size_t len)
 {
     bool ok = false;
-    if ((routes & MIDI_OUT_ROUTE_USB) != 0) {
-        ok |= midi_out_usb_send_bytes(bytes, len);
-    }
     if ((routes & MIDI_OUT_ROUTE_TRS_UART) != 0) {
         ok |= midi_out_uart_trs_send_bytes(bytes, len);
+    }
+    if ((routes & MIDI_OUT_ROUTE_USB) != 0) {
+        ok |= midi_out_usb_send_bytes(bytes, len);
     }
     if ((routes & MIDI_OUT_ROUTE_BLE) != 0) {
         ok |= midi_out_ble_send_bytes(bytes, len);

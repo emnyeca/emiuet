@@ -33,6 +33,13 @@ TRS MIDI preserves electrical compatibility while enabling a thinner design.
 - Additional circuitry is required for TRS MIDI compliance
 - Some legacy equipment may require adapters
 
+Firmware transport policy (instrument-first):
+- The performance-critical path must never block on transport I/O; MIDI generation only enqueues (0-wait) and dedicated sender tasks perform all I/O.
+- Realtime priority is TRS > USB = BLE; simultaneous output is allowed and no automatic fallback behavior is assumed.
+- USB targets drop-free delivery in normal operation by using a large discrete-event queue (default 1024) plus per-channel coalescing for continuous controls.
+- Pitch Bend and CC#1 are treated as continuous and are coalesced per channel; discrete events (e.g., Note On/Off) preserve ordering.
+- BLE-MIDI transport may be stubbed during development and should remain disabled in routing until the real transport is implemented.
+
 ---
 
 ## 2. Pitch Bend Direction and Range

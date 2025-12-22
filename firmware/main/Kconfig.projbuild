@@ -22,6 +22,53 @@ config EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT
 
         This is not recommended; it is intended only for experimentation.
 
+config EMIUET_MIDI_TASK_TRS_PRIORITY
+    int "TRS MIDI sender task priority"
+    range 1 24
+    default 7
+    depends on EMIUET_MIDI_TRS_UART_ENABLE
+    help
+        Priority for the TRS MIDI sender task.
+
+        This should be higher than the USB/BLE sender tasks (TRS > USB = BLE),
+        but does not need to exceed input scanning tasks.
+
+config EMIUET_MIDI_TASK_USB_PRIORITY
+    int "USB MIDI sender task priority"
+    range 1 24
+    default 6
+    help
+        Priority for the USB MIDI sender task.
+
+config EMIUET_MIDI_TASK_BLE_PRIORITY
+    int "BLE MIDI sender task priority"
+    range 1 24
+    default 6
+    help
+        Priority for the BLE MIDI sender task.
+
+config EMIUET_MIDI_TRS_QUEUE_LEN
+    int "TRS MIDI discrete event queue length"
+    range 8 512
+    default 64
+    depends on EMIUET_MIDI_TRS_UART_ENABLE
+    help
+        Queue length for discrete MIDI events (Note On/Off, etc.) for TRS.
+
+config EMIUET_MIDI_USB_QUEUE_LEN
+    int "USB MIDI discrete event queue length"
+    range 16 2048
+    default 1024
+    help
+        Queue length for discrete MIDI events (Note On/Off, etc.) for USB.
+
+config EMIUET_MIDI_BLE_QUEUE_LEN
+    int "BLE MIDI discrete event queue length"
+    range 16 2048
+    default 256
+    help
+        Queue length for discrete MIDI events (Note On/Off, etc.) for BLE.
+
 config MATRIX_SIM_ENABLED_DEFAULT
     bool "Enable matrix simulator by default"
     default n
