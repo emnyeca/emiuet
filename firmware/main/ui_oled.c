@@ -1,4 +1,4 @@
-#include "oled_demo.h"
+#include "ui_oled.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +24,7 @@
 
 #include "esp_timer.h"
 
-#include "led_status.h"
+#include "ui_led_status.h"
 
 #include "esp_log.h"
 

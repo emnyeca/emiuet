@@ -1,11 +1,12 @@
-    // app_main can return; tasks keep running.#include <stdio.h>
+
+#include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "board_pins.h"
-#include "led_status.h"
-#include "oled_demo.h"
+#include "ui_led_status.h"
+#include "ui_oled.h"
 
 #include "matrix_midi_bridge.h"
 #include "slider.h"
