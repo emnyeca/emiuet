@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 /* Backends */
 bool midi_out_usb_init(void);
@@ -106,6 +107,9 @@ void midi_out_init_ex(const midi_out_config_t *cfg)
         s_routes = cfg->routes;
     } else {
         s_routes = MIDI_OUT_ROUTE_USB;
+#if CONFIG_EMIUET_MIDI_TRS_UART_ENABLE
+        s_routes |= MIDI_OUT_ROUTE_TRS_UART;
+#endif
     }
 
     /* Init backends. Safe to call even if route is off; backends may no-op. */

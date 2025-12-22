@@ -75,6 +75,11 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 - BLE-MIDI
 - TRS MIDI (Type-A, 3.5 mm)
 
+Note on TRS MIDI (firmware):
+- The TRS MIDI OUT backend uses UART 31250 bps on `PIN_MIDI_OUT_TX` (UART0 TX).
+- If you enable TRS UART output in Kconfig, move the ESP-IDF console off UART0
+  (e.g., to USB Serial/JTAG), otherwise logs and MIDI will conflict.
+
 **DIN MIDI OUT is intentionally not supported**  
 and will not be added in this project.
 

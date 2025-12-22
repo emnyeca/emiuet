@@ -1,5 +1,27 @@
 menu "Emiuet"
 
+config EMIUET_MIDI_TRS_UART_ENABLE
+    bool "Enable TRS MIDI OUT (UART 31250)"
+    default n
+    help
+        Enable the TRS MIDI OUT backend using a UART at 31250 bps (8-N-1).
+
+        IMPORTANT:
+        The Emiuet hardware maps TRS MIDI OUT to PIN_MIDI_OUT_TX, which is UART0 TX.
+        If your console is also on UART0 (CONFIG_ESP_CONSOLE_UART_NUM=0), you must
+        move the console away from UART0 (e.g., USB Serial/JTAG) before enabling
+        this, otherwise logs and MIDI will conflict.
+
+config EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT
+    bool "Allow UART0 console conflict (unsafe)"
+    default n
+    depends on EMIUET_MIDI_TRS_UART_ENABLE
+    help
+        If enabled, the firmware will attempt to initialize UART0 for MIDI even if
+        the ESP-IDF console is configured to use UART0.
+
+        This is not recommended; it is intended only for experimentation.
+
 config MATRIX_SIM_ENABLED_DEFAULT
     bool "Enable matrix simulator by default"
     default n
