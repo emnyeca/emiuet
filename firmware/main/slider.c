@@ -17,9 +17,11 @@ static bool s_enabled = false;
 /* Last-good raw (0..1023) to return on transient ADC failures */
 static int s_last_raw = 0;
 static int s_adc_fail_count = 0;
+#ifdef SLIDER_DEBUG_CALIB
 /* Observed min/max for optional calibration logging */
 static int s_observed_min = INT_MAX;
 static int s_observed_max = INT_MIN;
+#endif
 
 void slider_init(void)
 {

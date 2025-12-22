@@ -184,6 +184,22 @@ Real-time behavior is prioritized over architectural elegance.
 
 ---
 
+## 7.1 USB-MIDI Bring-up Note (DevKit vs Prototype)
+
+Some ESP32-S3 DevKits expose *two different* USB paths:
+
+- USB-Serial/JTAG (debug/programming) port
+- Native USB OTG port (D+/D- on GPIO20/GPIO19)
+
+If the cable is connected to the USB-Serial/JTAG port, TinyUSB (USB OTG) can be fully initialized in firmware yet **Windows will not enumerate any MIDI device**, and `tud_mount_cb()` / `tud_mounted()` will never trigger.
+
+TODO (when the Emiuet prototype PCB arrives):
+- Verify the cable is connected to the native USB OTG port wired to GPIO20/GPIO19 (see pinout-v3).
+- If Windows still enumerates only Serial/JTAG, temporarily disable USB-Serial/JTAG in `menuconfig` so TinyUSB can own D+/D-.
+- Confirm host enumeration first (Device Manager / MIDI device listing) before debugging MIDI message flow.
+
+---
+
 ## 8. Things That Look Flexible but Are Not
 
 The following aspects may appear configurable but are intentionally fixed:

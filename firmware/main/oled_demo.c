@@ -262,23 +262,6 @@ static void adc_init(void)
     }
 }
 
-static int read_adc_mv_gpio4_slider(void)
-{
-    if (!s_adc_ok) {
-        /* Fallback: use slider ADC reading as proxy (0..1023 -> 0..3300mV)
-         * This allows OLED to run when another module already owns ADC. */
-        uint16_t raw = slider_read_pitchbend();
-        return (raw * 3300) / 1023;
-    }
-
-    int mv = 0;
-    if (adc_manager_read_mv(PIN_DBG_SLIDER, &mv) != ESP_OK) {
-        uint16_t raw = slider_read_pitchbend();
-        return (raw * 3300) / 1023;
-    }
-    return mv; // 0..3300mV相当
-}
-
 static int read_adc_mv_gpio17_batvsense(void)
 {
     if (!s_adc_ok) {

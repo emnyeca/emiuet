@@ -4,6 +4,9 @@
 
 #include "esp_log.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 static const char *TAG = "midi_out_usb";
 
 /*
@@ -17,6 +20,16 @@ static const char *TAG = "midi_out_usb";
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
 #include "tusb.h"
+#include "class/midi/midi_device.h"
+
+/* Some TinyUSB versions (including the one bundled via ESP-IDF 5.3.x managed component)
+ * don't provide tud_midi_ready(). Provide a local shim so we can log the state using the
+ * name requested, without changing descriptors or the send path.
+ */
+static inline bool tud_midi_ready(void)
+{
+    return tud_midi_mounted();
+}
 
 #ifndef EMUIET_USB_MIDI_VID
 #define EMUIET_USB_MIDI_VID 0x303A /* Espressif VID (commonly used in examples) */
@@ -79,14 +92,72 @@ static const char *s_string_desc[] = {
 
 static const uint8_t s_desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, EMUIET_USB_ITF_NUM_TOTAL, 0, (TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN), 0x00, 100),
-    TUD_MIDI_DESCRIPTOR(EMUIET_USB_ITF_NUM_MIDI, 4, EMUIET_USB_EP_MIDI_OUT, EMUIET_USB_MIDI_EP_SIZE, EMUIET_USB_EP_MIDI_IN, EMUIET_USB_MIDI_EP_SIZE)
+    /* Note: TUD_MIDI_DESCRIPTOR signature depends on TinyUSB version. In esp-idf v5.3.4's tinyusb, it is:
+     *   TUD_MIDI_DESCRIPTOR(itfnum, stridx, epout, epin, epsize)
+     * We don't provide a dedicated interface string, so stridx=0.
+     */
+    TUD_MIDI_DESCRIPTOR(EMUIET_USB_ITF_NUM_MIDI, 0, EMUIET_USB_EP_MIDI_OUT, EMUIET_USB_EP_MIDI_IN, EMUIET_USB_MIDI_EP_SIZE)
 };
 
 static bool s_inited = false;
+static TaskHandle_t s_usb_state_task_handle = NULL;
+
+static void midi_out_usb_event_cb(tinyusb_event_t *event, void *arg)
+{
+    (void)arg;
+    if (!event) return;
+
+    switch (event->id) {
+        case TINYUSB_EVENT_ATTACHED:
+            ESP_LOGI(TAG, "tud_mount_cb(): tud_mounted()=%d tud_midi_ready()=%d", (int)tud_mounted(), (int)tud_midi_ready());
+            break;
+        case TINYUSB_EVENT_DETACHED:
+            ESP_LOGI(TAG, "tud_umount_cb(): tud_mounted()=%d tud_midi_ready()=%d", (int)tud_mounted(), (int)tud_midi_ready());
+            break;
+        default:
+            break;
+    }
+}
+
+static void midi_out_usb_state_task(void *arg)
+{
+    (void)arg;
+
+    bool last_mounted = false;
+    bool last_ready = false;
+
+    while (1) {
+        const bool mounted = tud_mounted();
+        const bool ready = mounted && tud_midi_ready();
+
+        if (mounted != last_mounted) {
+            ESP_LOGI(TAG, "tud_mounted() -> %d", (int)mounted);
+            last_mounted = mounted;
+        }
+
+        if (ready != last_ready) {
+            ESP_LOGI(TAG, "tud_midi_ready() -> %d", (int)ready);
+            last_ready = ready;
+        }
+
+        /* Short delay to avoid busy looping.
+         * Note: the actual TinyUSB stack is serviced by esp_tinyusb's own task (tud_task()).
+         */
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 
 bool midi_out_usb_init(void)
 {
     if (s_inited) return true;
+
+    /* TODO (prototype bring-up):
+     * On some ESP32-S3 DevKits, the USB connector used for flashing/monitoring is USB-Serial/JTAG,
+     * not the native USB OTG D+/D- (GPIO20/GPIO19). In that case Windows won't enumerate this
+     * TinyUSB MIDI device and tud_mount_cb()/tud_mounted() won't fire.
+     * Ensure the cable is on the native OTG port (or temporarily disable USB-Serial/JTAG) when
+     * validating USB-MIDI enumeration.
+     */
 
     /* Default config provides sane task/PHY defaults; we override descriptors for MIDI. */
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG();
@@ -97,10 +168,32 @@ bool midi_out_usb_init(void)
     cfg.descriptor.high_speed_config = s_desc_configuration;
 #endif
 
+    /* Ensure the TinyUSB stack task (which runs tud_task() in a loop) is pinned to CPU0.
+     * This keeps USB enumeration progressing even after app_main() returns.
+     */
+    cfg.task.xCoreID = 0;
+    cfg.task.priority = 5;
+    cfg.event_cb = midi_out_usb_event_cb;
+    cfg.event_arg = NULL;
+
     esp_err_t err = tinyusb_driver_install(&cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(err));
         return false;
+    }
+
+    if (s_usb_state_task_handle == NULL) {
+        BaseType_t ok = xTaskCreatePinnedToCore(midi_out_usb_state_task,
+                                               "usb_state",
+                                               2048,
+                                               NULL,
+                                               5,
+                                               &s_usb_state_task_handle,
+                                               0);
+        if (ok != pdPASS) {
+            s_usb_state_task_handle = NULL;
+            ESP_LOGW(TAG, "Failed to start USB state monitor task");
+        }
     }
 
     s_inited = true;

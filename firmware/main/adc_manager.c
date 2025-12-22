@@ -54,7 +54,7 @@ static bool ensure_channel_configured_locked(adc_unit_t unit, adc_channel_t ch)
 
     adc_oneshot_chan_cfg_t chan_cfg = {
         .bitwidth = ADC_BITWIDTH_DEFAULT,
-        .atten = ADC_ATTEN_DB_11,
+        .atten = ADC_ATTEN_DB_12,
     };
 
     esp_err_t err = adc_oneshot_config_channel(handle, ch, &chan_cfg);
@@ -76,7 +76,7 @@ static void try_init_cali_for_unit(adc_unit_t unit, adc_cali_handle_t *out_handl
 
     adc_cali_curve_fitting_config_t cfg = {
         .unit_id = unit,
-        .atten = ADC_ATTEN_DB_11,
+        .atten = ADC_ATTEN_DB_12,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
 
