@@ -16,9 +16,8 @@
 #include "emiuet_logo.xbm"
 #include "driver/gpio.h"
 
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
+#include "adc_manager.h"
+#include "board_pins.h"
 #include "slider.h"
 
 #include "matrix_scan.h"
@@ -33,8 +32,8 @@
 // -------------------------
 // Pin / I2C config
 // -------------------------
-#define I2C_SCL_GPIO   16
-#define I2C_SDA_GPIO   18
+#define I2C_SCL_GPIO   ((int)PIN_I2C_SCL)
+#define I2C_SDA_GPIO   ((int)PIN_I2C_SDA)
 #define I2C_CLK_HZ     400000   // 400kHz (safe for most OLED modules)
 
 // -------------------------
@@ -129,11 +128,11 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 // -------------------------
 // Power UI / Debug inputs
 // -------------------------
-#define PIN_PGOOD           38
-#define PIN_CHG             48
+#define PIN_PGOOD           ((int)PIN_PGOOD_STATUS)
+#define PIN_CHG             ((int)PIN_CHG_STATUS)
 
-#define PIN_DBG_SLIDER      4    // ADC
-#define PIN_DBG_BUTTON      40   // GPIO, pull-up, press=0
+#define PIN_DBG_SLIDER      PIN_SLIDER_VEL    // ADC (velocity slider)
+#define PIN_DBG_BUTTON      PIN_SW_CENTER     // GPIO, pull-up, press=0
 
 #define POWER_UPDATE_MS     500
 
@@ -226,11 +225,9 @@ static void draw_cell_doublebox_fill(
 }
 
 // -------------------------
-// ADC (oneshot) handles
+// ADC access (centralized)
 // -------------------------
-static adc_oneshot_unit_handle_t s_adc1 = NULL;
-static adc_cali_handle_t s_adc_cali = NULL;
-static bool s_adc_cali_ok = false;
+static bool s_adc_ok = false;
 
 // デバッグ用モード（GPIO40で巡回）
 static power_debug_mode_t s_dbg_mode = PWR_MODE_BATTERY;
@@ -259,78 +256,43 @@ static void gpio_init_inputs(void)
 
 static void adc_init(void)
 {
-    adc_oneshot_unit_init_cfg_t init_cfg = {
-        .unit_id = ADC_UNIT_1,
-        .ulp_mode = ADC_ULP_MODE_DISABLE,
-    };
-    esp_err_t ret = adc_oneshot_new_unit(&init_cfg, &s_adc1);
-    if (ret != ESP_OK) {
-        ESP_LOGW("OLED", "adc_oneshot_new_unit failed: %s; falling back to slider proxy",
-                 esp_err_to_name(ret));
-        s_adc1 = NULL;
-        s_adc_cali_ok = false;
-        return;
-    }
-
-    // GPIO4 and GPIO17 are on ADC1 channels (ESP32-S3: GPIO4=CH3, GPIO17=CH6)
-    adc_oneshot_chan_cfg_t chan_cfg = {
-        .atten = ADC_ATTEN_DB_11,    // 0..~3.3V目安
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    if (s_adc1) {
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_3, &chan_cfg)); // GPIO4
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(s_adc1, ADC_CHANNEL_6, &chan_cfg)); // GPIO17
-    }
-
-    // キャリブレーション（未確定扱いでOK、取れたら使う）
-    adc_cali_curve_fitting_config_t cal_cfg = {
-        .unit_id = ADC_UNIT_1,
-        .atten = ADC_ATTEN_DB_11,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    if (adc_cali_create_scheme_curve_fitting(&cal_cfg, &s_adc_cali) == ESP_OK) {
-        s_adc_cali_ok = true;
+    s_adc_ok = adc_manager_init();
+    if (!s_adc_ok) {
+        ESP_LOGW("OLED", "adc_manager_init failed; falling back to slider proxy");
     }
 }
 
 static int read_adc_mv_gpio4_slider(void)
 {
-    if (s_adc1 == NULL) {
+    if (!s_adc_ok) {
         /* Fallback: use slider ADC reading as proxy (0..1023 -> 0..3300mV)
          * This allows OLED to run when another module already owns ADC. */
         uint16_t raw = slider_read_pitchbend();
         return (raw * 3300) / 1023;
     }
 
-    int raw = 0;
-    ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_3, &raw)); // GPIO4
-
     int mv = 0;
-    if (s_adc_cali_ok) {
-        adc_cali_raw_to_voltage(s_adc_cali, raw, &mv);
-    } else {
-        mv = (raw * 3300) / 4095;
+    if (adc_manager_read_mv(PIN_DBG_SLIDER, &mv) != ESP_OK) {
+        uint16_t raw = slider_read_pitchbend();
+        return (raw * 3300) / 1023;
     }
     return mv; // 0..3300mV相当
 }
 
 static int read_adc_mv_gpio17_batvsense(void)
 {
-    if (s_adc1 == NULL) {
+    if (!s_adc_ok) {
         /* No ADC unit available; approximate battery from slider proxy. */
         uint16_t raw = slider_read_pitchbend();
         int slider_mv = (raw * 3300) / 1023;
         return 3300 + (slider_mv * 900) / 3300; // same formula as before
     }
 
-    int raw = 0;
-    ESP_ERROR_CHECK(adc_oneshot_read(s_adc1, ADC_CHANNEL_6, &raw)); // GPIO17
-
     int mv = 0;
-    if (s_adc_cali_ok) {
-        adc_cali_raw_to_voltage(s_adc_cali, raw, &mv);
-    } else {
-        mv = (raw * 3300) / 4095;
+    if (adc_manager_read_mv(PIN_BAT_VSENSE, &mv) != ESP_OK) {
+        uint16_t raw = slider_read_pitchbend();
+        int slider_mv = (raw * 3300) / 1023;
+        return 3300 + (slider_mv * 900) / 3300;
     }
     return mv; // Vadc
 }

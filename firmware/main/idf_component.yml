@@ -1,0 +1,8 @@
+## IDF Component Manager Manifest File
+##
+## We use Espressif's TinyUSB integration layer to provide USB device
+## functionality (including USB-MIDI) without pulling transport details
+## into higher-level musical logic.
+
+dependencies:
+  esp_tinyusb: "^2.0.0"

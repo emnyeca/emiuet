@@ -4,6 +4,9 @@ build/
 sdkconfig.old
 *.bin
 *.elf
+
+# ESP-IDF Component Manager outputs (generated)
+managed_components/
 # Compiled Python files
 
 #IDE stuff
