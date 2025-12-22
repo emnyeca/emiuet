@@ -49,7 +49,7 @@ static void slider_task(void *arg)
 
     while (1) {
         uint16_t raw = slider_read_pitchbend(); /* 0..1023 */
-        /* Poll SW_CENTER (GPIO40) for MPE toggle/debug. Detect edges. */
+        /* Poll SW_CENTER (PIN_SW_CENTER) for MPE toggle/debug. Detect edges. */
         static int last_sw_center = 1;
         int sw_now = gpio_get_level(PIN_SW_CENTER);
         if (sw_now != last_sw_center) {

@@ -3,6 +3,7 @@
 #include "midi_mpe.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "sdkconfig.h"
 #include <stdlib.h>
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -47,11 +48,17 @@ void matrix_midi_bridge_start(int discard_cycles)
     midi_out_init();
     midi_mpe_init();
     matrix_scan_start(on_key_event, discard_cycles);
-    /* Enable simulator mode and start per-string sim tasks so OLED and MIDI
+
+#if CONFIG_MATRIX_SIM_ENABLED_DEFAULT
+    /* Dev-only: enable simulator mode and start per-string sim tasks so OLED and MIDI
      * observe simulated presses without being overwritten by hw scan. */
     matrix_scan_set_sim_enabled(true);
     matrix_sim_start();
-    ESP_LOGI(TAG, "Started debug matrix simulator (per-string async)");
+    ESP_LOGW(TAG, "Matrix simulator ENABLED (CONFIG_MATRIX_SIM_ENABLED_DEFAULT=y)");
+#else
+    matrix_scan_set_sim_enabled(false);
+#endif
+
     ESP_LOGI(TAG, "matrix->MIDI bridge started (discard_cycles=%d)", discard_cycles);
 }
 

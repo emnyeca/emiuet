@@ -6,16 +6,40 @@
 
 static const char *TAG = "midi_mpe";
 
+#define MPE_NUM_STRINGS 6
+
 static bool g_mpe_enabled = false;
-static int g_last_active_row = 3; /* -1 == no last-active row (reset state) */
-static uint8_t g_mpe_base_channel = 1; /* default MPE base channel */
+static int g_last_active_row = -1; /* -1 == no last-active row (reset state) */
+/* Internal: 0-based MIDI channel used as the base for per-string mapping.
+ * 0 == MIDI channel 1.
+ * Default is 1 (i.e., MIDI channel 2) to match common MPE member-channel layout.
+ */
+static uint8_t g_mpe_base_channel_ch0 = 1;
 
 /* When true, note activity will NOT update g_last_active_row. This is used
  * to lock the pitch-bend target while a bend is in progress. */
 static bool g_pb_locked = false;
 
-/* default non-MPE channel (0-based) */
-static const uint8_t g_default_channel = 0;
+/* Internal default non-MPE channel (0-based): 0 == MIDI channel 1 */
+static const uint8_t g_default_channel_ch0 = 0;
+
+static inline uint8_t clamp_ch1_16(uint8_t ch1_16)
+{
+    if (ch1_16 < 1) return 1;
+    if (ch1_16 > 16) return 16;
+    return ch1_16;
+}
+
+static inline uint8_t ch1_to_ch0(uint8_t ch1_16)
+{
+    return (uint8_t)(clamp_ch1_16(ch1_16) - 1);
+}
+
+static inline uint8_t ch0_to_ch1(uint8_t ch0_15)
+{
+    if (ch0_15 > 15) ch0_15 = 15;
+    return (uint8_t)(ch0_15 + 1);
+}
 
 void midi_mpe_init(void)
 {
@@ -38,7 +62,7 @@ void midi_mpe_note_activity(int row)
 {
     /* Update last-active row only when not locked. If locked, keep the
      * existing target until unlocked by slider logic. */
-    if (!g_pb_locked && row >= 0 && row < 6) g_last_active_row = row;
+    if (!g_pb_locked && row >= 0 && row < MPE_NUM_STRINGS) g_last_active_row = row;
 }
 
 /* bend_value: 0..16383 (14-bit). Interpretation: 8192 == center.
@@ -47,18 +71,18 @@ void midi_mpe_note_activity(int row)
  */
 void midi_mpe_apply_pitchbend(uint16_t bend_value)
 {
-    uint8_t channel = g_default_channel;
+    uint8_t channel_ch0 = g_default_channel_ch0;
     if (g_mpe_enabled) {
         if (g_last_active_row >= 0) {
-            channel = midi_mpe_channel_for_row(g_last_active_row);
+            channel_ch0 = midi_mpe_channel_for_row(g_last_active_row);
         } else {
             /* No last-active string selected: fall back to default channel */
-            channel = g_default_channel;
+            channel_ch0 = g_default_channel_ch0;
         }
     }
 
-    midi_send_pitchbend(channel, bend_value);
-    ESP_LOGD(TAG, "apply_pitchbend ch=%d value=%d", channel, bend_value);
+    midi_send_pitchbend(channel_ch0, bend_value);
+    ESP_LOGD(TAG, "apply_pitchbend ch0=%d(ch%d) value=%d", (int)channel_ch0, (int)ch0_to_ch1(channel_ch0), (int)bend_value);
 }
 
 int midi_mpe_get_last_active_channel(void)
@@ -79,29 +103,34 @@ void midi_mpe_reset_pitchbend_target(void)
     ESP_LOGD(TAG, "pb target reset");
 }
 
-void midi_mpe_set_base_channel(uint8_t base)
+void midi_mpe_set_base_channel(uint8_t base_ch1_16)
 {
-    /* Accept 0..15 (0-based channels) but typical MPE uses 1-based numbering in UI.
-     * We store 0-based.
+    /* Public API is 1-based (1..16) to match MIDI UI conventions.
+     * Internally we keep 0-based channels for encoding.
+     * In MPE mode we use 6 channels (one per string): base..base+5.
+     * Clamp base so that base+5 never exceeds MIDI channel 16.
      */
-    g_mpe_base_channel = base;
+    const uint8_t max_base_ch1_16 = (uint8_t)(16 - (MPE_NUM_STRINGS - 1)); /* 11 */
+    if (base_ch1_16 < 1) base_ch1_16 = 1;
+    if (base_ch1_16 > max_base_ch1_16) base_ch1_16 = max_base_ch1_16;
+    g_mpe_base_channel_ch0 = (uint8_t)(base_ch1_16 - 1);
 }
 
 uint8_t midi_mpe_get_base_channel(void)
 {
-    return g_mpe_base_channel;
+    return ch0_to_ch1(g_mpe_base_channel_ch0);
 }
 
 uint8_t midi_mpe_channel_for_row(int row)
 {
-    if (row < 0) return g_default_channel;
+    if (row < 0) return g_default_channel_ch0;
     /* Map row 0.. to base..base+rows-1; keep within 0..15 */
-    uint32_t ch = (uint32_t)g_mpe_base_channel + (uint32_t)row;
+    uint32_t ch = (uint32_t)g_mpe_base_channel_ch0 + (uint32_t)row;
     if (ch > 15) ch = 15;
     return (uint8_t)ch;
 }
 
 uint8_t midi_mpe_default_channel(void)
 {
-    return g_default_channel;
+    return g_default_channel_ch0;
 }

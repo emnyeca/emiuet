@@ -132,7 +132,7 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 #define PIN_CHG             ((int)PIN_CHG_STATUS)
 
 #define PIN_DBG_SLIDER      PIN_SLIDER_VEL    // ADC (velocity slider)
-#define PIN_DBG_BUTTON      PIN_SW_CENTER     // GPIO, pull-up, press=0
+#define PIN_DBG_BUTTON      PIN_SW_CENTER     // GPIO input, pull-up, press=0
 
 #define POWER_UPDATE_MS     500
 
@@ -229,7 +229,7 @@ static void draw_cell_doublebox_fill(
 // -------------------------
 static bool s_adc_ok = false;
 
-// デバッグ用モード（GPIO40で巡回）
+// デバッグ用モード（PIN_SW_CENTER 押下で巡回）
 static power_debug_mode_t s_dbg_mode = PWR_MODE_BATTERY;
 
 // ボタンデバウンス用
@@ -247,7 +247,7 @@ static void gpio_init_inputs(void)
     io.pull_down_en = 0;
     gpio_config(&io);
 
-    // Debug button (GPIO40)
+    // Debug button (PIN_SW_CENTER)
     io.pin_bit_mask = (1ULL << PIN_DBG_BUTTON);
     io.pull_up_en = 1;
     io.pull_down_en = 0;
@@ -262,7 +262,7 @@ static void adc_init(void)
     }
 }
 
-static int read_adc_mv_gpio17_batvsense(void)
+static int read_adc_mv_batvsense(void)
 {
     if (!s_adc_ok) {
         /* No ADC unit available; approximate battery from slider proxy. */
@@ -280,7 +280,7 @@ static int read_adc_mv_gpio17_batvsense(void)
     return mv; // Vadc
 }
 
-// GPIO40押下ごとに: BATTERY -> EXT -> FAULT -> BATTERY
+// PIN_SW_CENTER 押下ごとに: BATTERY -> EXT -> FAULT -> BATTERY
 static void debug_button_update(void)
 {
     int now = gpio_get_level(PIN_DBG_BUTTON);
@@ -551,9 +551,10 @@ static void power_ui_update_500ms(power_ui_t *p)
     }
 
     // ---- Battery mode ----
-    /* Use ADC GPIO17 (battery sense) for vbat. GPIO4 is reserved for the
-     * debug slider/pitch-bend and should not be used for battery calculation. */
-    int vbat_mv = read_adc_mv_gpio17_batvsense(); // read real battery sense (mV)
+    /* Read vbat from PIN_BAT_VSENSE.
+     * Note: PIN_DBG_SLIDER is reserved for the debug slider/pitch-bend proxy.
+     */
+    int vbat_mv = read_adc_mv_batvsense(); // read battery sense (mV)
 
     int bars = calc_bars_from_vbat(vbat_mv);
     p->bars = bars;

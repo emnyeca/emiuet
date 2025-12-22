@@ -1,0 +1,15 @@
+menu "Emiuet"
+
+config MATRIX_SIM_ENABLED_DEFAULT
+    bool "Enable matrix simulator by default"
+    default n
+    help
+        Enable the debug key-matrix simulator at boot.
+
+        Use this only for development when running on a dev kit without the
+        real key matrix connected.
+
+        For prototype/production bring-up this should remain disabled to avoid
+        masking real hardware input issues.
+
+endmenu

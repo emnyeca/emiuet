@@ -19,11 +19,19 @@ void midi_mpe_apply_pitchbend(uint16_t bend_value);
 void midi_mpe_note_activity(int row);
 
 /* MPE base channel management
- * - base channel is the lowest MIDI channel used for MPE string mapping
- * - e.g., base=1 maps rows 0..5 to channels base..base+5
+ * - API is 1-based to match MIDI UI conventions (1..16)
+ * - base channel is the lowest MIDI channel used for per-string mapping
+ * - in MPE mode, 6 strings map to channels base..base+5
+ * - e.g., base=2 maps rows 0..5 to channels 2..7 (MPE-compatible member channels)
+ * - base is clamped so base+5 never exceeds channel 16
  */
-void midi_mpe_set_base_channel(uint8_t base);
+void midi_mpe_set_base_channel(uint8_t base_ch1_16);
 uint8_t midi_mpe_get_base_channel(void);
+
+/* Internal channel mapping helpers (0-based for MIDI encoding):
+ * - midi_mpe_channel_for_row(): returns 0..15 (0 == MIDI ch1)
+ * - midi_mpe_default_channel(): returns 0..15 (0 == MIDI ch1)
+ */
 uint8_t midi_mpe_channel_for_row(int row);
 uint8_t midi_mpe_default_channel(void);
 

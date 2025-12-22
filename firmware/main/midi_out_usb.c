@@ -153,7 +153,7 @@ bool midi_out_usb_init(void)
 
     /* TODO (prototype bring-up):
      * On some ESP32-S3 DevKits, the USB connector used for flashing/monitoring is USB-Serial/JTAG,
-     * not the native USB OTG D+/D- (GPIO20/GPIO19). In that case Windows won't enumerate this
+      * not the native USB OTG D+/D- (PIN_USB_D_PLUS/PIN_USB_D_MINUS). In that case Windows won't enumerate this
      * TinyUSB MIDI device and tud_mount_cb()/tud_mounted() won't fire.
      * Ensure the cable is on the native OTG port (or temporarily disable USB-Serial/JTAG) when
      * validating USB-MIDI enumeration.

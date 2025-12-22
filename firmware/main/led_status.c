@@ -8,19 +8,20 @@
 #include "freertos/portmacro.h"
 
 #include "driver/ledc.h"
+#include "board_pins.h"
 
 // ============================================================
-// LED HW (GPIO6 + LEDC PWM)
+// LED HW (PIN_STATUS_LED + LEDC PWM)
 // ------------------------------------------------------------
 // Wiring assumed (Active-Low):
-//   3V3 -> R(1k) -> LED Anode -> LED Cathode -> GPIO6
+//   3V3 -> R(1k) -> LED Anode -> LED Cathode -> PIN_STATUS_LED
 // So:
 //   GPIO LOW  = ON
 //   GPIO HIGH = OFF
 // We implement brightness 0..255 and invert duty for Active-Low.
 // ============================================================
 
-#define LED_GPIO          (6)
+#define LED_GPIO          (PIN_STATUS_LED)
 
 // LEDC config
 #define LEDC_MODE         LEDC_LOW_SPEED_MODE

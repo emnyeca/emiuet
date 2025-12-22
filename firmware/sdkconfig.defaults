@@ -4,6 +4,10 @@
 # Enable USB-MIDI via esp_tinyusb
 CONFIG_TINYUSB_MIDI_COUNT=1
 
+# Development-only: keep the matrix simulator OFF by default so prototype
+# bring-up uses real matrix scan behavior.
+# CONFIG_MATRIX_SIM_ENABLED_DEFAULT is not set
+
 # Target hardware (EUB-04): ESP32-S3-MINI-1-N4R2 has 4MB flash.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"

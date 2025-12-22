@@ -9,7 +9,7 @@ static const char *TAG = "midi_out_uart_trs";
 /*
  * TRS MIDI (Type-A) backend placeholder.
  *
- * NOTE: The design maps TRS MIDI OUT to GPIO43 (U0TXD). ESP-IDF default
+ * NOTE: The design maps TRS MIDI OUT to PIN_MIDI_OUT_TX (UART0 TX). ESP-IDF default
  * console also uses UART0, so enabling this backend likely requires moving
  * console output away from UART0 (e.g., USB Serial JTAG) to avoid conflicts.
  */
