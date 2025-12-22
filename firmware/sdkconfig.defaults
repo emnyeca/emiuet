@@ -1,0 +1,5 @@
+# Default configuration for Emiuet firmware.
+# These values are applied when generating sdkconfig (idf.py reconfigure/menuconfig).
+
+# Enable USB-MIDI via esp_tinyusb
+CONFIG_TINYUSB_MIDI_COUNT=1
