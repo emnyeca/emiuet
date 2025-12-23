@@ -616,14 +616,27 @@ static void draw_stringwise_icon(u8g2_t *u8g2, int x, int y)
 
 static void draw_ble_icon(u8g2_t *u8g2, int x, int y)
 {
-    /* Minimal BLE/antenna glyph (no text): stem + ears. */
-    const int cx = x + 6;
-    u8g2_DrawVLine(u8g2, cx, y + 2, 11);
-    u8g2_DrawBox(u8g2, cx - 1, y + 1, 3, 3);
+    // Bluetooth rune glyph (approx) in 16x14 using lines only.
+    // x,y: top-left of 16x16 box (icon uses y+1 .. y+14)
+    // Geometry (14px tall)
+    const int top = y + 2;      // was y+1
+    const int bot = y + 13;     // was y+14
+    const int mid = (top + bot) / 2;
+    const int cx  = x + 7;      // stem center
 
-    u8g2_DrawLine(u8g2, cx, y + 4, x + 1, y + 1);
-    u8g2_DrawLine(u8g2, cx, y + 4, x + 12, y + 1);
-    u8g2_DrawHLine(u8g2, x + 2, y + 12, 10);
+    // Stem
+    u8g2_DrawVLine(u8g2, cx, top, bot - top + 1);
+
+    // Right-side triangles
+    u8g2_DrawLine(u8g2, cx, top, x + 12, y + 5);
+    u8g2_DrawLine(u8g2, cx, mid, x + 12, y + 5);
+
+    u8g2_DrawLine(u8g2, cx, mid, x + 12, y + 10);
+    u8g2_DrawLine(u8g2, cx, bot, x + 12, y + 10);
+
+    // Left cross strokes
+    u8g2_DrawLine(u8g2, cx, y + 6,  x + 3, y + 3);
+    u8g2_DrawLine(u8g2, cx, y + 9,  x + 3, y + 12);
 }
 
 // 点滅位相：描画のたびにこれを更新して使う
