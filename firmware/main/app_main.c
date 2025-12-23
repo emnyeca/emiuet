@@ -8,6 +8,8 @@
 #include "ui_led_status.h"
 #include "ui_oled.h"
 
+#include "controls.h"
+
 #include "matrix_midi_bridge.h"
 #include "slider.h"
 
@@ -45,6 +47,9 @@ void app_main(void)
 
     /* Stage 1: safe pins only (LED/buttons/power status, etc.) */
     board_pins_init_early();
+
+    /* Centralized buttons + control state machine (octave/MPE/long-press) */
+    controls_start();
 
     printf("Emiuet firmware: starting demo tasks\n");
     led_status_start();

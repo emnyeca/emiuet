@@ -49,28 +49,6 @@ static void slider_task(void *arg)
 
     while (1) {
         uint16_t raw = slider_read_pitchbend(); /* 0..1023 */
-        /* Poll SW_CENTER (PIN_SW_CENTER) for MPE toggle/debug. Detect edges. */
-        static int last_sw_center = 1;
-        int sw_now = gpio_get_level(PIN_SW_CENTER);
-        if (sw_now != last_sw_center) {
-            /* simple debounce: require stable for 30ms (polled at 10ms) */
-            static int stable_count = 0;
-            if (sw_now == last_sw_center) {
-                stable_count = 0;
-            } else {
-                stable_count++;
-            }
-            if (stable_count >= 3) {
-                /* falling edge = pressed (active low) */
-                if (sw_now == 0) {
-                    bool new_en = !midi_mpe_is_enabled();
-                    midi_mpe_set_enabled(new_en);
-                    ESP_LOGI(TAG, "SW_CENTER pressed: MPE %s", new_en ? "ENABLED" : "DISABLED");
-                }
-                last_sw_center = sw_now;
-                stable_count = 0;
-            }
-        }
 
         const int MIDI_CENTER = 8192;
         const int MIDI_MAX = 16383;
@@ -232,14 +210,6 @@ void slider_task_start(void)
         ESP_LOGW(TAG, "slider disabled; slider task not started");
         return;
     }
-
-    /* Configure center switch (PIN_SW_CENTER) for debug MPE toggle/logging */
-    gpio_config_t io = {0};
-    io.mode = GPIO_MODE_INPUT;
-    io.pin_bit_mask = (1ULL << PIN_SW_CENTER);
-    io.pull_up_en = 1;
-    io.pull_down_en = 0;
-    gpio_config(&io);
 
     xTaskCreate(slider_task, "slider_task", 4096, NULL, 6, &s_task);
     ESP_LOGD(TAG, "slider task started");

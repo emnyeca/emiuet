@@ -26,6 +26,8 @@
 
 #include "ui_led_status.h"
 
+#include "controls.h"
+
 #include "esp_log.h"
 
 
@@ -131,9 +133,6 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 #define PIN_PGOOD           ((int)PIN_PGOOD_STATUS)
 #define PIN_CHG             ((int)PIN_CHG_STATUS)
 
-#define PIN_DBG_SLIDER      PIN_SLIDER_VEL    // ADC (velocity slider)
-#define PIN_DBG_BUTTON      PIN_SW_CENTER     // GPIO input, pull-up, press=0
-
 #define POWER_UPDATE_MS     500
 
 // Battery icon geometry (yellow area)
@@ -152,13 +151,6 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 #define V_TH_3_TO_2_MV   3950
 #define V_TH_2_TO_1_MV   3750
 #define V_TH_LOW_MV      3550
-
-typedef enum {
-    PWR_MODE_BATTERY = 0,   // 外部電源なし
-    PWR_MODE_EXT_CHARGING = 1,   // 外部電源ありで充電中
-    PWR_MODE_EXT_CHARGED = 2,    // 外部電源ありで充電完了
-    PWR_MODE_FAULT = 3,   // Fault表示
-} power_debug_mode_t;
 
 typedef enum {
     PWR_STATE_FAULT = 0,
@@ -229,13 +221,6 @@ static void draw_cell_doublebox_fill(
 // -------------------------
 static bool s_adc_ok = false;
 
-// デバッグ用モード（PIN_SW_CENTER 押下で巡回）
-static power_debug_mode_t s_dbg_mode = PWR_MODE_BATTERY;
-
-// ボタンデバウンス用
-static int s_btn_last = 1;
-static int64_t s_btn_last_change_us = 0;
-
 static void gpio_init_inputs(void)
 {
     gpio_config_t io = {0};
@@ -243,12 +228,6 @@ static void gpio_init_inputs(void)
     // PGOOD / CHG (pull-up already external, but internal pull-up harmless)
     io.mode = GPIO_MODE_INPUT;
     io.pin_bit_mask = (1ULL << PIN_PGOOD) | (1ULL << PIN_CHG);
-    io.pull_up_en = 1;
-    io.pull_down_en = 0;
-    gpio_config(&io);
-
-    // Debug button (PIN_SW_CENTER)
-    io.pin_bit_mask = (1ULL << PIN_DBG_BUTTON);
     io.pull_up_en = 1;
     io.pull_down_en = 0;
     gpio_config(&io);
@@ -265,7 +244,9 @@ static void adc_init(void)
 static int read_adc_mv_batvsense(void)
 {
     if (!s_adc_ok) {
-        /* No ADC unit available; approximate battery from slider proxy. */
+        /* No ADC unit available; approximate battery from pitch-bend slider.
+         * (This is a fallback path; normal behavior reads PIN_BAT_VSENSE via adc_manager.)
+         */
         uint16_t raw = slider_read_pitchbend();
         int slider_mv = (raw * 3300) / 1023;
         return 3300 + (slider_mv * 900) / 3300; // same formula as before
@@ -278,25 +259,6 @@ static int read_adc_mv_batvsense(void)
         return 3300 + (slider_mv * 900) / 3300;
     }
     return mv; // Vadc
-}
-
-// PIN_SW_CENTER 押下ごとに: BATTERY -> EXT -> FAULT -> BATTERY
-static void debug_button_update(void)
-{
-    int now = gpio_get_level(PIN_DBG_BUTTON);
-    int64_t t = esp_timer_get_time();
-
-    if (now != s_btn_last) {
-        // デバウンス：変化から30ms以上経過で確定
-        if ((t - s_btn_last_change_us) > 30000) {
-            s_btn_last_change_us = t;
-            s_btn_last = now;
-
-            if (now == 0) { // falling edge = pressed
-                s_dbg_mode = (power_debug_mode_t)((s_dbg_mode + 1) % 4);
-            }
-        }
-    }
 }
 
 // -------------------------
@@ -511,33 +473,9 @@ static int calc_bars_from_vbat(int vbat_mv)
 
 static void power_ui_update_500ms(power_ui_t *p)
 {
-    debug_button_update();
-
     // 実ピン読み（デバッグ時は上書き）
     bool ext_power = (gpio_get_level(PIN_PGOOD) == 0);
     bool charging  = (gpio_get_level(PIN_CHG) == 0);
-
-    switch (s_dbg_mode) {
-        case PWR_MODE_BATTERY:
-            ext_power = false;
-            charging = false;   // どっちでも良いけど固定しとくと混ざらない
-            break;
-
-        case PWR_MODE_EXT_CHARGING:
-            ext_power = true;
-            charging  = true;
-            break;
-
-        case PWR_MODE_EXT_CHARGED:
-            ext_power = true;
-            charging  = false;
-            break;
-
-        case PWR_MODE_FAULT:
-            p->state = PWR_STATE_FAULT;
-            p->bars = 0;
-            return;
-    }
 
     if (ext_power) {
         if (charging) {
@@ -551,9 +489,7 @@ static void power_ui_update_500ms(power_ui_t *p)
     }
 
     // ---- Battery mode ----
-    /* Read vbat from PIN_BAT_VSENSE.
-     * Note: PIN_DBG_SLIDER is reserved for the debug slider/pitch-bend proxy.
-     */
+    /* Read vbat from PIN_BAT_VSENSE. */
     int vbat_mv = read_adc_mv_batvsense(); // read battery sense (mV)
 
     int bars = calc_bars_from_vbat(vbat_mv);
@@ -629,7 +565,8 @@ static void draw_fixed_layout(u8g2_t *u8g2)
     u8g2_SetFont(u8g2, u8g2_font_6x12_tf);
     u8g2_SetFontPosBaseline(u8g2);
 
-    const char *oct_text = "OCT: 0";
+    char oct_text[12];
+    (void)snprintf(oct_text, sizeof(oct_text), "OCT: %d", (int)controls_get_octave());
     int tw = u8g2_GetStrWidth(u8g2, oct_text);
     int tx = (OLED_W - tw) / 2;
     int ty = 12; // baseline within 0..15
