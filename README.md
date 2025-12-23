@@ -115,8 +115,8 @@ This behavior is **by design** and should not be generalized or made symmetrical
 
 ### Performance Modes
 
-Emiuet supports an optional MPE-style mode,
-enabled via a dedicated physical toggle switch.
+Emiuet supports an optional **Stringwise Bend** mode (MPE-style),
+enabled via the dedicated physical toggle switch.
 
 In this mode, each string (row) is assigned to an independent MIDI channel,
 allowing string-specific pitch expression.

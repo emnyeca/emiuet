@@ -28,6 +28,9 @@
 
 #include "controls.h"
 
+#include "midi_mpe.h"
+#include "midi_out.h"
+
 #include "esp_log.h"
 
 
@@ -146,6 +149,20 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 #define BAR_H       6
 #define BAR_W       5
 #define BAR_GAP     1
+
+// Status bar icons (yellow area)
+#define STATUS_ICON_Y              1
+#define STATUS_ICON_MARGIN_RIGHT   2
+#define STATUS_ICON_SPACING        2
+
+#define STRINGWISE_ICON_W          24
+#define BLE_ICON_W                 14
+
+typedef enum {
+    BLE_UI_DISABLED = 0,
+    BLE_UI_ENABLED,
+    BLE_UI_ADVERTISING,
+} ble_ui_state_t;
 
 // 初期閾値（未確定のままでOK：後で微調整）
 #define V_TH_3_TO_2_MV   3950
@@ -532,6 +549,83 @@ static led_state_t led_state_from_power_ui(const power_ui_t *p)
 static bool power_ui_is_fault(const power_ui_t *p) { return p->state == PWR_STATE_FAULT; }
 static bool power_ui_is_lowblink(const power_ui_t *p) { return p->state == PWR_STATE_BAT_1_BLINK; }
 
+static bool stringwise_is_enabled(void)
+{
+    /* Emiuet naming: "Stringwise Bend" == MPE-style per-string channel mode. */
+    return midi_mpe_is_enabled();
+}
+
+/* Optional hook for future BLE implementation.
+ * Return values must match ble_ui_state_t.
+ */
+__attribute__((weak)) int emiuet_ble_ui_get_state(void)
+{
+    return (int)BLE_UI_ENABLED;
+}
+
+static ble_ui_state_t ble_get_state(void)
+{
+    /* Treat BLE as disabled unless the BLE route is enabled and BT is enabled in sdkconfig.
+     * This keeps the icon off by default (current BLE backend is a stub).
+     */
+#if defined(CONFIG_BT_ENABLED) && (CONFIG_BT_ENABLED)
+    if ((midi_out_get_routes() & MIDI_OUT_ROUTE_BLE) == 0) return BLE_UI_DISABLED;
+
+    int st = emiuet_ble_ui_get_state();
+    if (st < (int)BLE_UI_DISABLED) st = (int)BLE_UI_DISABLED;
+    if (st > (int)BLE_UI_ADVERTISING) st = (int)BLE_UI_ADVERTISING;
+    return (ble_ui_state_t)st;
+#else
+    return BLE_UI_DISABLED;
+#endif
+}
+
+static bool ui_blink_on_2hz(int64_t now_ms)
+{
+    /* 2Hz: 250ms ON/OFF */
+    return ((now_ms / 250) % 2) == 0;
+}
+
+static bool ui_needs_fast_refresh(const power_ui_t *p, ble_ui_state_t ble_state)
+{
+    if (power_ui_is_fault(p) || power_ui_is_lowblink(p)) return true;
+    return ble_state == BLE_UI_ADVERTISING;
+}
+
+static void draw_stringwise_icon(u8g2_t *u8g2, int x, int y)
+{
+    /* Design: 6 horizontal strings + center ▶ + right-side vertical line.
+     * Keep within 0..15 (yellow area).
+     */
+    const int x0 = x;
+    const int x1 = x + 16;
+    const int vx = x + 12;
+
+    for (int i = 0; i < 4; i++) {
+        int yy = y + 2 + (i * 3);
+        u8g2_DrawHLine(u8g2, x0, yy, (x1 - x0));
+    }
+
+    /* ▶ (triangle outline) */
+    const int cy = y + 7;
+    u8g2_DrawTriangle(u8g2, x + 4, cy - 4, x + 4, cy + 4, x + 9, cy);
+
+    /* Right-side vertical line ("fret/lock") */
+    u8g2_DrawVLine(u8g2, vx, y + 2, 11);
+}
+
+static void draw_ble_icon(u8g2_t *u8g2, int x, int y)
+{
+    /* Minimal BLE/antenna glyph (no text): stem + ears. */
+    const int cx = x + 6;
+    u8g2_DrawVLine(u8g2, cx, y + 2, 11);
+    u8g2_DrawBox(u8g2, cx - 1, y + 1, 3, 3);
+
+    u8g2_DrawLine(u8g2, cx, y + 4, x + 1, y + 1);
+    u8g2_DrawLine(u8g2, cx, y + 4, x + 12, y + 1);
+    u8g2_DrawHLine(u8g2, x + 2, y + 12, 10);
+}
+
 // 点滅位相：描画のたびにこれを更新して使う
 static void power_ui_update_blink_phase(power_ui_t *p, int64_t now_ms)
 {
@@ -571,6 +665,26 @@ static void draw_fixed_layout(u8g2_t *u8g2)
     int tx = (OLED_W - tw) / 2;
     int ty = 12; // baseline within 0..15
     u8g2_DrawStr(u8g2, tx, ty, oct_text);
+
+    /* --- Yellow area: status icons (right side) --- */
+    const int stringwise_x = OLED_W - STATUS_ICON_MARGIN_RIGHT - STRINGWISE_ICON_W;
+    const int ble_x = stringwise_x - STATUS_ICON_SPACING - BLE_ICON_W;
+
+    if (stringwise_is_enabled()) {
+        draw_stringwise_icon(u8g2, stringwise_x, STATUS_ICON_Y);
+    }
+
+    ble_ui_state_t ble_state = ble_get_state();
+    if (ble_state != BLE_UI_DISABLED) {
+        bool blink_on = true;
+        if (ble_state == BLE_UI_ADVERTISING) {
+            int64_t now_ms = esp_timer_get_time() / 1000;
+            blink_on = ui_blink_on_2hz(now_ms);
+        }
+        if (blink_on) {
+            draw_ble_icon(u8g2, ble_x, STATUS_ICON_Y);
+        }
+    }
 
     // boundary line at y=15 (optional, but nice)
     u8g2_DrawHLine(u8g2, 0, YELLOW_H - 1, OLED_W);
@@ -655,6 +769,7 @@ static void oled_task(void *arg)
     adc_init();
 
     int64_t next_update_ms = 0;
+    TickType_t last_wake = xTaskGetTickCount();
 
     while (1) {
         int64_t now_ms = esp_timer_get_time() / 1000;
@@ -677,7 +792,17 @@ static void oled_task(void *arg)
             draw_fixed_layout(&s_u8g2);
         } while (u8g2_NextPage(&s_u8g2));
 
-        vTaskDelay(pdMS_TO_TICKS(50)); // 20fps相当（軽め）
+        /* Adaptive refresh rate:
+         * - Normal: 100ms (10fps)
+         * - When blinking (power fault/low-batt or BLE advertising): 50ms (20fps)
+         */
+        ble_ui_state_t ble_state = ble_get_state();
+        bool fast = ui_needs_fast_refresh(&s_pwr_ui, ble_state);
+        int frame_ms = fast ? 50 : 100;
+
+        TickType_t frame_ticks = pdMS_TO_TICKS(frame_ms);
+        if (frame_ticks < 1) frame_ticks = 1;
+        vTaskDelayUntil(&last_wake, frame_ticks);
     }
 }
 
