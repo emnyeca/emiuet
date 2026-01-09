@@ -4016,156 +4016,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Jumper:Jumper_2_Bridged"
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 0)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "JP"
-				(at 0 1.905 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "Jumper_2_Bridged"
-				(at 0 -2.54 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" "~"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "Jumper, 2-pole, closed/bridged"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "Jumper SPST"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_fp_filters" "Jumper* TestPoint*2Pads* TestPoint*Bridge*"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "Jumper_2_Bridged_0_0"
-				(circle
-					(center -2.032 0)
-					(radius 0.508)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center 2.032 0)
-					(radius 0.508)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "Jumper_2_Bridged_0_1"
-				(arc
-					(start -1.524 0.254)
-					(mid 0 0.762)
-					(end 1.524 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "Jumper_2_Bridged_1_1"
-				(pin passive line
-					(at -5.08 0 0)
-					(length 2.54)
-					(name "A"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 5.08 0 180)
-					(length 2.54)
-					(name "B"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "Mechanical:MountingHole"
 			(pin_names
 				(offset 1.016)
@@ -11257,7 +11107,7 @@
 	)
 	(wire
 		(pts
-			(xy 271.78 204.47) (xy 278.13 204.47)
+			(xy 271.78 204.47) (xy 293.37 204.47)
 		)
 		(stroke
 			(width 0)
@@ -11277,7 +11127,7 @@
 	)
 	(wire
 		(pts
-			(xy 306.07 232.41) (xy 313.69 232.41)
+			(xy 306.07 232.41) (xy 349.25 232.41)
 		)
 		(stroke
 			(width 0)
@@ -12177,16 +12027,6 @@
 	)
 	(wire
 		(pts
-			(xy 288.29 204.47) (xy 293.37 204.47)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b89742e5-aad9-44f2-8f41-d691196c2112")
-	)
-	(wire
-		(pts
 			(xy 374.65 241.3) (xy 375.92 241.3)
 		)
 		(stroke
@@ -12744,16 +12584,6 @@
 			(type default)
 		)
 		(uuid "e0396894-a10e-4e46-bd91-216db21face1")
-	)
-	(wire
-		(pts
-			(xy 323.85 232.41) (xy 349.25 232.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e067bbb3-bf0f-4ad8-b708-adad18f3258b")
 	)
 	(wire
 		(pts
@@ -34993,74 +34823,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Jumper:Jumper_2_Bridged")
-		(at 318.77 232.41 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "b969ae6c-d7c3-4a35-a02c-b60f07f345cb")
-		(property "Reference" "JP3"
-			(at 318.77 227.33 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "Jumper_2_Bridged"
-			(at 318.77 229.87 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
-			(at 318.77 232.41 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 318.77 232.41 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Jumper, 2-pole, closed/bridged"
-			(at 318.77 232.41 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "682e590a-c47c-4e2b-bdfc-17a5000a936c")
-		)
-		(pin "2"
-			(uuid "fc55eed8-3f8c-4874-9122-89f7cc1a362a")
-		)
-		(instances
-			(project ""
-				(path "/c9191c2a-649b-4f9d-b8cd-0f4c3bb1b88c"
-					(reference "JP3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_name "D_Small_1")
 		(lib_id "Device:D_Small")
 		(at 196.85 85.09 0)
@@ -35983,73 +35745,6 @@
 			(project "Emiuet"
 				(path "/c9191c2a-649b-4f9d-b8cd-0f4c3bb1b88c"
 					(reference "R29")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Jumper:Jumper_2_Bridged")
-		(at 283.21 204.47 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "bfb44adf-ca1c-4c11-a83e-faa571e7bafb")
-		(property "Reference" "JP1"
-			(at 283.21 199.39 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "Jumper_2_Bridged"
-			(at 283.718 201.93 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_2Pads_Pitch2.54mm_Drill0.8mm"
-			(at 283.21 204.47 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 283.21 204.47 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Jumper, 2-pole, closed/bridged"
-			(at 283.21 204.47 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "cd653325-cc13-477c-8153-9b21eeb9919f")
-		)
-		(pin "1"
-			(uuid "186dad36-e567-4379-b429-2d70bf3c1821")
-		)
-		(instances
-			(project ""
-				(path "/c9191c2a-649b-4f9d-b8cd-0f4c3bb1b88c"
-					(reference "JP1")
 					(unit 1)
 				)
 			)
@@ -38568,7 +38263,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "EUB_Passives:Battery Cell 800mah bis"
+		(property "Footprint" "EUB_Passives:Battery Cell 800mah nobis"
 			(at 386.08 223.52 0)
 			(effects
 				(font
