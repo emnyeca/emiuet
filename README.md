@@ -1,4 +1,9 @@
 ﻿# Emiuet (EUB-04)
+
+<p align="center">
+  <img src="docs/assets/logo.png" width="420" alt="Emiuet logo">
+</p>
+
 Fretboard-style MIDI Controller for Guitarists
 
 ## Overview
