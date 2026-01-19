@@ -94,10 +94,10 @@
 #define MATRIX_NUM_ROWS 6
 #define MATRIX_NUM_COLS 13
 
-/* Row drive pins (Strings) */
+/* Row pins (Strings) */
 extern const gpio_num_t MATRIX_ROW_PINS[MATRIX_NUM_ROWS];
 
-/* Column sense pins (Frets)
+/* Column pins (Frets)
  * NOTE: GPIO45 / GPIO46 are strapping pins.
  * Do NOT start matrix scanning immediately after boot.
  */
@@ -118,8 +118,8 @@ extern const gpio_num_t MATRIX_COL_PINS[MATRIX_NUM_COLS];
 void board_pins_init_early(void);
 
 /* Matrix init is two-stage to protect strapping pins:
- *  - board_pins_init_matrix_prepare(): configure row pins (outputs) only
- *  - board_pins_enable_matrix_columns(): configure column pins (inputs)
+ *  - board_pins_init_matrix_prepare(): configure row pins (inputs) only
+ *  - board_pins_enable_matrix_columns(): configure column pins (outputs)
  *  - board_pins_init_matrix_late(): convenience wrapper that does both
  */
 void board_pins_init_matrix_prepare(void);
@@ -133,9 +133,16 @@ void board_pins_init_matrix_late(void);
 #define MATRIX_INITIAL_DISCARD_CYCLES 5
 #endif
 
-/* Column internal pull-up selection: default ON for safer prototype behavior.
+/* Row internal pull-up selection: default ON for safer prototype behavior.
  * Set to 0 if external pull resistors are present and internal pulls are undesired.
+ *
+ * Compatibility note:
+ * - Older configs may set MATRIX_COL_INTERNAL_PULLUP; we mirror it if present.
  */
-#ifndef MATRIX_COL_INTERNAL_PULLUP
-#define MATRIX_COL_INTERNAL_PULLUP 1
+#ifndef MATRIX_ROW_INTERNAL_PULLUP
+#ifdef MATRIX_COL_INTERNAL_PULLUP
+#define MATRIX_ROW_INTERNAL_PULLUP MATRIX_COL_INTERNAL_PULLUP
+#else
+#define MATRIX_ROW_INTERNAL_PULLUP 1
+#endif
 #endif

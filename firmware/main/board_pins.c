@@ -2,7 +2,7 @@
 #include "driver/gpio.h"
 #include "esp_err.h"
 
-/* Row drive pins (Strings) */
+/* Row pins (Strings) */
 const gpio_num_t MATRIX_ROW_PINS[MATRIX_NUM_ROWS] = {
     GPIO_NUM_5,   /* Str1 */
     GPIO_NUM_7,   /* Str2 */
@@ -12,7 +12,7 @@ const gpio_num_t MATRIX_ROW_PINS[MATRIX_NUM_ROWS] = {
     GPIO_NUM_10   /* Str6 */
 };
 
-/* Column sense pins (Frets) */
+/* Column pins (Frets) */
 const gpio_num_t MATRIX_COL_PINS[MATRIX_NUM_COLS] = {
     GPIO_NUM_46,  /* Frt0  (Strapping) */
     GPIO_NUM_45,  /* Frt1  (Strapping) */
@@ -89,26 +89,25 @@ void board_pins_init_early(void)
 }
 void board_pins_init_matrix_prepare(void)
 {
-    /* Configure matrix rows as outputs only. Keep columns untouched for now
+    /* Configure matrix rows as inputs only. Keep columns untouched for now
      * to avoid changing strapping pin state until we are ready.
      */
     for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-        configure_output(MATRIX_ROW_PINS[r], 1);
+#if MATRIX_ROW_INTERNAL_PULLUP
+        configure_input_with_pullup(MATRIX_ROW_PINS[r]);
+#else
+        configure_input_no_pull(MATRIX_ROW_PINS[r]);
+#endif
     }
 }
 
 void board_pins_enable_matrix_columns(void)
 {
-    /* Now enable column inputs. By default we enable internal pull-ups for
-     * prototype safety; override MATRIX_COL_INTERNAL_PULLUP to 0 if hardware
-     * provides external resistors.
+    /* Now enable column outputs (drive pins). We default columns HIGH (inactive)
+     * and drive a single column LOW during scan.
      */
     for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
-#if MATRIX_COL_INTERNAL_PULLUP
-        configure_input_with_pullup(MATRIX_COL_PINS[c]);
-#else
-        configure_input_no_pull(MATRIX_COL_PINS[c]);
-#endif
+        configure_output(MATRIX_COL_PINS[c], 1);
     }
 }
 

@@ -32,18 +32,18 @@ static portMUX_TYPE s_matrix_mux = portMUX_INITIALIZER_UNLOCKED;
 static int g_discard_cycles = 0;
 static bool g_capture_after_discard = false;
 
-static void select_row(int row)
+static void select_col(int col)
 {
-    /* Rows default HIGH (inactive). Drive low to select. */
-    for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-        gpio_set_level(MATRIX_ROW_PINS[r], (r == row) ? 0 : 1);
+    /* Columns default HIGH (inactive). Drive low to select. */
+    for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+        gpio_set_level(MATRIX_COL_PINS[c], (c == col) ? 0 : 1);
     }
 }
 
-static void deselect_rows(void)
+static void deselect_cols(void)
 {
-    for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-        gpio_set_level(MATRIX_ROW_PINS[r], 1);
+    for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+        gpio_set_level(MATRIX_COL_PINS[c], 1);
     }
 }
 
@@ -58,30 +58,30 @@ static void scan_task(void *arg)
          * adopt the current physical state as initial stable_pressed values.
          */
         if (g_capture_after_discard) {
-            for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-                select_row(r);
+            for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+                select_col(c);
                 esp_rom_delay_us(50);
-                for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
-                    int level = gpio_get_level(MATRIX_COL_PINS[c]);
+                for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
+                    int level = gpio_get_level(MATRIX_ROW_PINS[r]);
                     bool pressed = (level == 0);
                     portENTER_CRITICAL(&s_matrix_mux);
                     hw_pressed[r][c] = pressed;
                     key_state[r][c] = pressed ? MATRIX_DEBOUNCE_COUNT : 0;
                     portEXIT_CRITICAL(&s_matrix_mux);
                 }
-                deselect_rows();
+                deselect_cols();
             }
             g_capture_after_discard = false;
         }
 
-        for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-            select_row(r);
+        for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
+            select_col(c);
             /* small settle */
             esp_rom_delay_us(50);
 
-            for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
-                int level = gpio_get_level(MATRIX_COL_PINS[c]);
-                /* Assuming active-low read on columns when key pressed */
+            for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
+                int level = gpio_get_level(MATRIX_ROW_PINS[r]);
+                /* Assuming active-low read on rows when key pressed */
                 bool pressed = (level == 0);
 
                 /* If we are still in discard period, skip counter updates entirely */
@@ -116,7 +116,7 @@ static void scan_task(void *arg)
                 }
             }
 
-            deselect_rows();
+            deselect_cols();
             taskYIELD();
         }
 
