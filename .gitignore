@@ -6,6 +6,7 @@
 *backups
 *.bak
 fp-info-cache
+*.rpt
 
 # ESP-IDF build outputs
 firmware/build/
