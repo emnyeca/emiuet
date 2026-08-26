@@ -22,7 +22,7 @@ ESP32-S3-MINI-1 の安定動作に必須の固定機能ピンです。
 | BAT_VSENSE | GPIO17 | Pin 21 | バッテリー電圧監視（ADC2_CH6）        |
 | EN         | -      | Pin 45 | 10kΩ + 1μF RC 遅延必須         |
 | CHG        | GPIO48 | Pin 30 | 充電中ステータス（10kΩ 外部 PU）       |
-| PGOOD      | GPIO38 | Pin 34 | 外部電源検知（10kΩ 外部 PU）         |
+| PGOOD      | GPIO38 | Pin 34 | オンボードPowerPathの入力電源有効検知（10kΩ 外部 PU） |
 
 ---
 

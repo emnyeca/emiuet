@@ -197,3 +197,28 @@ improves reliability and avoids performance disruption.
 - Piano-style keyboard abstractions
 - Feature parity with commercial MIDI keyboards
 - Extensive on-device configuration menus
+
+---
+
+## 8. Standalone Product and Power Boundary
+
+### Decision
+Emiuet remains a self-contained MIDI keyboard and performance instrument.
+Battery charging, power-path control, and all rails required for normal
+operation are implemented within Emiuet.
+
+Hearth is not a required external power unit, and EUB-BUS is not a required
+Emiuet product interface.
+
+### Context
+Rev.A combined all subsystems on one board, which made individual failures
+hard to isolate. Power therefore needs independent validation before Rev.B,
+but separating validation hardware must not turn that temporary test boundary
+into a permanent product dependency.
+
+### Consequences
+- Rev.B must operate from its own battery and USB power architecture.
+- The Emiuet validation project includes a dedicated internal-power test board.
+- Hearth may be used as an optional comparison source or protected bench supply.
+- A validation setup using Hearth must also be repeated with Emiuet's own power
+  circuit before the corresponding Rev.B gate can pass.

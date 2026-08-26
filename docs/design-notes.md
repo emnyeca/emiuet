@@ -46,6 +46,17 @@ USB power is treated as:
 
 It is not assumed to be a stable system reference.
 
+### 2.3 Standalone Product Boundary
+
+Power conversion, charging, battery monitoring, and the rails required for
+performance are part of Emiuet itself. Hearth may be useful as an independent
+bench source or comparison design during validation, but Emiuet must neither
+require Hearth nor assume EUB-BUS is present in normal operation.
+
+Before Rev.B integration, the Emiuet power block is validated separately and
+then exercised again with the MCU and I/O load. Passing a test with Hearth
+alone is not evidence that Emiuet's internal power implementation has passed.
+
 ---
 
 ## 3. Startup Stability and Boot Safety

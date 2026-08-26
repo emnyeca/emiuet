@@ -2,5 +2,6 @@
   "files.exclude": {
     "**/build": true
   },
-  "idf.portWin": "COM13"
+  "idf.portWin": "COM13",
+  "cmake.sourceDirectory": "D:/emnye/Documents/GitHub/emiuet/firmware"
 }

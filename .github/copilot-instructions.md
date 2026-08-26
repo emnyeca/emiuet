@@ -38,6 +38,8 @@ Ask for clarification only if a change would affect musical response or power st
 - OLED rendering assumes **u8g2**. Do not replace display libraries.
 - Boot and power stability requirements in the hardware design are not optional.
   Do not propose replacing them with software workarounds.
+- Emiuet is a self-contained instrument. Do not make Hearth, EUB-BUS, or another
+  external power module a requirement for normal operation.
 
 ## Preferred Engineering Style
 

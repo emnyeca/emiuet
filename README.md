@@ -18,6 +18,10 @@ focused, intentionally constrained musical instrument.
 This repository contains hardware designs, firmware, and documentation
 for the Emiuet prototype.
 
+Emiuet is a **self-contained MIDI instrument**. Its battery charging,
+power-path, and required system rails are part of Emiuet itself; normal
+operation must not depend on Hearth or another external EUB power module.
+
 ---
 
 ## Design Philosophy
@@ -68,8 +72,9 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 
 - MCU: **ESP32-S3-MINI-1**
 - Power:
-  - Single-cell Li-ion battery (external)
-  - Power-path charging architecture
+  - Single-cell Li-ion battery
+  - Integrated power-path charging and system power architecture
+  - No required external power module; USB is used for charging and/or MIDI
 - USB-C:
   - Port #1: Charging only
   - Port #2: USB-MIDI (DRP / OTG)
