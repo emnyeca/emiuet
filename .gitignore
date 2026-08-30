@@ -18,3 +18,6 @@ firmware/sdkconfig.old
 
 #IDE stuff
 firmware/.vscode/
+
+#Local Files
+local
