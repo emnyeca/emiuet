@@ -27,7 +27,7 @@
 static const char *TAG = "midi_out_usb";
 
 /*
- * USB-MIDI backend
+ * Fixed-role USB Device backend
  *
  * This is intentionally isolated behind a config gate so the project
  * still builds even when TinyUSB is not enabled in sdkconfig.
@@ -394,14 +394,21 @@ bool midi_out_usb_init(void)
 
     /* TODO (prototype bring-up):
      * On some ESP32-S3 DevKits, the USB connector used for flashing/monitoring is USB-Serial/JTAG,
-      * not the native USB OTG D+/D- (PIN_USB_D_PLUS/PIN_USB_D_MINUS). In that case Windows won't enumerate this
-     * TinyUSB MIDI device and tud_mount_cb()/tud_mounted() won't fire.
-     * Ensure the cable is on the native OTG port (or temporarily disable USB-Serial/JTAG) when
-     * validating USB-MIDI enumeration.
+     * not the native USB D+/D- (PIN_USB_D_PLUS/PIN_USB_D_MINUS). In that case Windows won't enumerate this
+     * TinyUSB composite Device and tud_mount_cb()/tud_mounted() won't fire.
+     * Ensure the cable is on the native USB Device port when validating enumeration.
      */
 
     /* Default config provides sane task/PHY defaults; we override descriptors for MIDI. */
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG();
+#if CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR
+    cfg.phy.self_powered = true;
+    cfg.phy.vbus_monitor_io = CONFIG_EMIUET_USB_VBUS_MONITOR_GPIO;
+#else
+    ESP_LOGW(TAG,
+             "self-powered VBUS monitor disabled (Rev.A compatibility); "
+             "Rev.B hardware/config must enable it");
+#endif
     cfg.descriptor.device = &s_desc_device;
     cfg.descriptor.string = s_string_desc;
     cfg.descriptor.full_speed_config = s_desc_configuration;

@@ -88,31 +88,31 @@ The prototype descriptor retains the repository's existing Espressif VID
 an assigned or otherwise authorized USB VID/PID; this is a release/compliance
 decision, not a PCB requirement.
 
-## USB role and Rev.B findings
+## USB role and Rev.B boundary
 
-The composite Device feature is firmware-only and requires no PCB change.
-Host/Device role switching is a separate, unresolved hardware/firmware concern:
+Rev.B formally uses a fixed **USB Device / UFP** role. USB Host, DRP/OTG role
+switching, Host VBUS sourcing, and Device/Host runtime transitions are outside
+the initial product scope by design, not merely unimplemented. MIDI/TYPE mode
+switching therefore never changes the USB configuration.
 
-- Rev.A U5 is a TUSB320. `PORT` is intentionally left unconnected, selecting DRP; `ADDR` is pulled low, selecting I²C address `0x60`.
-- SDA/SCL share the MCU's I²C bus, but TUSB320 `ID` and `INT_N` are only pulled up and are not routed to an ESP32-S3 GPIO. No current firmware reads TUSB320 registers or manages USB roles.
-- The ESP32-S3 has one USB-OTG controller and cannot operate that controller as Host and Device simultaneously. Software can tear down one stack and initialize the other, which necessarily disconnects and re-enumerates.
-- Rev.A's LM66100 VBUS2 path has `CE` pulled high rather than controlled by the MCU or TUSB320. A safe, negotiated Host-mode VBUS source is therefore not established by the present firmware design.
-- Emiuet can run from its battery while USB is absent. Espressif's self-powered Device guidance therefore makes physical detach detection and VBUS sensing a bench-validation item; Rev.A does not route a dedicated VBUS-presence signal to an ESP32-S3 GPIO. The implemented TinyUSB detach callback is safe at the software level, but electrical/compliance behavior must be confirmed on hardware.
+The checked-in KiCad schematic and manufacturing outputs remain the historical
+Rev.A design. Rev.A U5 is a TUSB320 configured as DRP, and internal +5V reaches
+USB-C #2 VBUS through LM66100. Rev.B replaces those role/source circuits with
+fixed CC pull-downs and protected VBUS presence sensing. See the fixed-role
+decision and hardware delta in [`decisions.md`](decisions.md#10-revb-fixed-usb-device-role).
 
-Consequently, this feature formally supports composite **USB Device** operation.
-Device → Host → Device switching has not been claimed or implemented. If USB
-Host becomes a Rev.B requirement, the role-status signal, controllable and
-current-limited VBUS sourcing, VBUS discharge/backfeed behavior, and a complete
-stack teardown/restart state machine must be reviewed together. Those changes
-must not be inferred as necessary for MIDI + HID composite Device mode.
+Emiuet is self-powered from its battery/system rails, so the Rev.B VBUS monitor
+must be connected to the ESP32-S3 and enabled in `esp_tinyusb`. Physical detach
+detection and electrical behavior remain hardware validation items until that
+Rev.B circuit is built.
 
-The hardware findings above come from the checked-in Rev.A KiCad PCB/schematic.
-The software constraints are consistent with Espressif's ESP32-S3 USB Device,
-USB Host, and USB FAQ documentation, and TI's TUSB320 datasheet.
+The software constraints are consistent with Espressif's ESP32-S3 USB Device
+and self-powered Device documentation. The Rev.A historical findings use TI's
+TUSB320 and LM66100 datasheets.
 
 Official references:
 
 - [ESP-IDF 5.3.1 ESP32-S3 USB Device Stack](https://docs.espressif.com/projects/esp-idf/en/v5.3.1/esp32s3/api-reference/peripherals/usb_device.html)
-- [ESP32-S3 USB Host](https://docs.espressif.com/projects/esp-idf/en/release-v5.3/esp32s3/api-reference/peripherals/usb_host.html)
-- [Espressif USB FAQ](https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/usb.html)
+- [esp_tinyusb self-powered Device configuration](https://components.espressif.com/components/espressif/esp_tinyusb/versions/2.0.1/readme)
 - [TI TUSB320 datasheet](https://www.ti.com/lit/ds/symlink/tusb320.pdf)
+- [TI LM66100 datasheet](https://www.ti.com/lit/ds/symlink/lm66100.pdf)

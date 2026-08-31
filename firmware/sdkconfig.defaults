@@ -5,6 +5,10 @@
 CONFIG_TINYUSB_MIDI_COUNT=1
 CONFIG_TINYUSB_HID_COUNT=1
 
+# Rev.A has no ESP32-S3 VBUS monitor connection. Rev.B must enable this after
+# the protected GPIO42 sense circuit is present.
+# CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR is not set
+
 # Development-only: keep the matrix simulator OFF by default so prototype
 # bring-up uses real matrix scan behavior.
 # CONFIG_MATRIX_SIM_ENABLED_DEFAULT is not set

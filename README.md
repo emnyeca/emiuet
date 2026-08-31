@@ -74,16 +74,33 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 - Power:
   - Single-cell Li-ion battery
   - Integrated power-path charging and system power architecture
-  - No required external power module; USB is used for charging and/or MIDI
+  - No required external power module; USB-C #1 is the charging/power input and USB-C #2 is data-only
 - USB-C:
   - Port #1: Charging only
-  - Port #2: USB-MIDI (DRP / OTG)
+  - Port #2: USB 2.0 Device / UFP
+    - USB MIDI
+    - USB HID Keyboard
+
+Rev.B intentionally does not support USB Host, DRP, OTG role switching, or
+Host VBUS sourcing. Complex USB routing belongs to a PC or an external USB MIDI
+host/router; Emiuet itself remains a USB Device and does not bridge two USB
+Devices.
 
 ### MIDI Outputs
 
 - USB-MIDI
 - BLE-MIDI
 - TRS MIDI (Type-A, 3.5 mm)
+
+Transport responsibilities are intentionally bounded:
+
+- USB MIDI → PC, Mac, or an external USB MIDI host/router
+- TRS MIDI OUT → hardware MIDI devices and MIDI routers
+- BLE-MIDI → wireless MIDI
+- USB HID → PC or Mac keyboard input
+
+BLE HID, USB Host bridging, and routing from one USB Device through Emiuet to
+another USB Device are not part of the Rev.B scope.
 
 When connected as a USB device, Emiuet enumerates as a composite device with
 both USB-MIDI and USB HID Keyboard interfaces.
