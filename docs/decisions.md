@@ -222,3 +222,29 @@ into a permanent product dependency.
 - Hearth may be used as an optional comparison source or protected bench supply.
 - A validation setup using Hearth must also be repeated with Emiuet's own power
   circuit before the corresponding Rev.B gate can pass.
+
+---
+
+## 9. Auxiliary USB HID Keyboard Mode
+
+### Decision
+
+Emiuet formally supports MIDI Mode and an auxiliary USB HID Keyboard Mode
+(`TYPE`). USB-MIDI and HID Keyboard remain present in one composite USB Device;
+the input mode selects which event path is active without re-enumerating USB.
+
+### Context
+
+The 78-key matrix can cover ordinary text and shortcut input. This reduces the
+need to keep another keyboard beside Emiuet, but does not change the product's
+primary identity or guitar-first ergonomics.
+
+### Consequences
+
+- TYPE is limited to practical auxiliary text/navigation input and a single Fn layer.
+- The four physical matrix corners held for 2 seconds switch modes.
+- Every transition releases tracked notes/keys and resets pending transport state.
+- Composite Device mode is firmware-only on Rev.A.
+- USB Host/Device role switching remains outside this feature; the current Rev.A
+  role-status and VBUS-control connections are insufficient to claim a safe
+  firmware-only Host transition.

@@ -1,4 +1,5 @@
 #include "slider.h"
+#include "input_router.h"
 #include "midi_mpe.h"
 #include "board_pins.h"
 #include "driver/gpio.h"
@@ -59,6 +60,23 @@ static void slider_task(void *arg)
         /* Bottom snap: if slider is at (near) bottom, force center */
         const bool is_bottom = (raw <= SLIDER_PB_BOTTOM_RAW);
         if (is_bottom) cur = MIDI_CENTER;
+
+        if (!input_router_is_midi_mode()) {
+            /* TYPE mode owns input output. Keep sampling, but emit no MIDI. */
+            state = SLIDER_STATE_IDLE;
+            baseline = cur;
+            last_sent = 0xFFFF;
+            start_count = 0;
+            stop_count = 0;
+            just_activated = false;
+            if (pb_target_locked) {
+                midi_mpe_lock_pitchbend_target(false);
+                midi_mpe_reset_pitchbend_target();
+                pb_target_locked = false;
+            }
+            vTaskDelay(delay);
+            continue;
+        }
 
         /* State machine for sending */
         switch (state) {

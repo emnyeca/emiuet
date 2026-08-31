@@ -3,6 +3,7 @@
 
 # Enable USB-MIDI via esp_tinyusb
 CONFIG_TINYUSB_MIDI_COUNT=1
+CONFIG_TINYUSB_HID_COUNT=1
 
 # Development-only: keep the matrix simulator OFF by default so prototype
 # bring-up uses real matrix scan behavior.

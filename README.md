@@ -85,6 +85,9 @@ The enclosure design is intentionally kept flexible during the prototype phase.
 - BLE-MIDI
 - TRS MIDI (Type-A, 3.5 mm)
 
+When connected as a USB device, Emiuet enumerates as a composite device with
+both USB-MIDI and USB HID Keyboard interfaces.
+
 Firmware policy (instrument-first):
 - Musical logic must never block on transport I/O; all backends enqueue with 0-wait and send from dedicated tasks.
 - Realtime priority is TRS > USB = BLE (simultaneous output is allowed; no fallback behavior is assumed).
@@ -130,6 +133,22 @@ enabled via the dedicated physical toggle switch.
 
 In this mode, each string (row) is assigned to an independent MIDI channel,
 allowing string-specific pitch expression.
+
+### Input Modes
+
+Emiuet supports two explicit input modes:
+
+- **MIDI Mode** — the 6 × 13 matrix plays the instrument through the enabled MIDI transports.
+- **USB HID Keyboard Mode (TYPE)** — the same matrix provides auxiliary QWERTY-style text and PC control input over USB HID; matrix presses and sliders do not emit MIDI.
+
+TYPE mode is a desk-convenience feature for short text entry, search, file
+operations, and auxiliary coding input. It does not redefine Emiuet as a PC
+keyboard or target conventional keyboard typing speed and ergonomics.
+
+Hold all four physical matrix corners for 2 seconds to switch between MIDI and
+TYPE. The USB device remains enumerated during a mode change. See
+[USB HID Keyboard Mode](docs/keyboard-mode.md) for the complete layout, Fn
+layer, transition behavior, and USB-role constraints.
 
 ---
 
