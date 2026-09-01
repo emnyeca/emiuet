@@ -5,6 +5,7 @@
 
 #include "esp_log.h"
 #include "input_router.h"
+#include "midi_input.h"
 #include "usb_hid_keyboard.h"
 
 /* Defensive defaults for newly introduced Kconfig symbols.
@@ -122,7 +123,7 @@ static const uint8_t s_hid_report_descriptor[] = {
 static const uint8_t s_desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, EMUIET_USB_ITF_NUM_TOTAL, 0,
                           (TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN + TUD_HID_DESC_LEN),
-                          0x00, 100),
+                          0x00, 250),
     /* Note: TUD_MIDI_DESCRIPTOR signature depends on TinyUSB version. In esp-idf v5.3.4's tinyusb, it is:
      *   TUD_MIDI_DESCRIPTOR(itfnum, stridx, epout, epin, epsize)
      * We don't provide a dedicated interface string, so stridx=0.
@@ -134,6 +135,7 @@ static const uint8_t s_desc_configuration[] = {
 };
 
 static bool s_inited = false;
+static midi_input_parser_t s_midi_rx_parser;
 static TaskHandle_t s_usb_state_task_handle = NULL;
 
 typedef struct {
@@ -163,6 +165,17 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 {
     (void)instance;
     return s_hid_report_descriptor;
+}
+
+void tud_midi_rx_cb(uint8_t instance)
+{
+    (void)instance;
+    uint8_t bytes[64];
+    while (tud_midi_available()) {
+        const uint32_t count = tud_midi_stream_read(bytes, sizeof(bytes));
+        if (count == 0) break;
+        midi_input_feed(&s_midi_rx_parser, bytes, count);
+    }
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
@@ -399,16 +412,10 @@ bool midi_out_usb_init(void)
      * Ensure the cable is on the native USB Device port when validating enumeration.
      */
 
-    /* Default config provides sane task/PHY defaults; we override descriptors for MIDI. */
+    /* Rev.B is bus-powered from this same connector. TUSB320 independently
+     * observes CC attach/orientation/current; TinyUSB uses its normal bus-powered PHY.
+     */
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG();
-#if CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR
-    cfg.phy.self_powered = true;
-    cfg.phy.vbus_monitor_io = CONFIG_EMIUET_USB_VBUS_MONITOR_GPIO;
-#else
-    ESP_LOGW(TAG,
-             "self-powered VBUS monitor disabled (Rev.A compatibility); "
-             "Rev.B hardware/config must enable it");
-#endif
     cfg.descriptor.device = &s_desc_device;
     cfg.descriptor.string = s_string_desc;
     cfg.descriptor.full_speed_config = s_desc_configuration;
@@ -424,6 +431,7 @@ bool midi_out_usb_init(void)
     cfg.event_cb = midi_out_usb_event_cb;
     cfg.event_arg = NULL;
 
+    midi_input_parser_init(&s_midi_rx_parser);
     esp_err_t err = tinyusb_driver_install(&cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(err));

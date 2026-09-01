@@ -1,164 +1,41 @@
-# Emiuet Pin Assignment (Final) v3.0
+# Emiuet Rev.B GPIO allocation
 
-このドキュメントは **Emiuet ファームウェアおよび PCB 設計における唯一の正（Single Source of Truth）** として使用される最終確定ピンアサイン資料です。
+この表がRev.B schematicとfirmwareのGPIO正本です。ESP32-S3-MINI-1-N4R2を前提とし、
+GPIO26は内蔵PSRAM用として使いません。
 
-* 本資料の内容は、README / design-notes / decisions よりも **優先度が高い** ものとします
-* ファームウェア実装時は、本資料を直接参照して GPIO 定義を行ってください
-* PCB Rev.3 以降では、本資料を前提として差し替えを行って問題ありません
+| Function | GPIO | Module pin | Reason |
+|---|---:|---:|---|
+| Slider PB / MOD / VEL | 1 / 2 / 4 | 5 / 6 / 8 | ADC1 CH0/1/3。USBやradioと競合しにくい連続群 |
+| Matrix rows 0–5 | 5–10 | 9–14 | 6本連続でstring方向をescapeしやすい |
+| Matrix cols 0–7 | 11–18 | 15–22 | 8本連続 |
+| USB D- / D+ | 19 / 20 | 23 / 24 | native USB固定 |
+| Matrix col 8 | 21 | 25 | USB pair直後の残り1本 |
+| Matrix cols 9–12 | 33–36 | 28 / 29 / 31 / 32 | 4本連続。使用module variantでavailabilityを再確認 |
+| TUSB320 INT_N | 37 | 33 | I2C status change、外部pull-up |
+| SK6812 DATA | 38 | 34 | RMT TX → AHCT buffer |
+| I2C SDA / SCL | 39 / 40 | 35 / 36 | OLEDとTUSB320の共有bus |
+| SW CENTER / RIGHT | 41 / 42 | 37 / 38 | active-low button inputs |
+| TRS MIDI OUT / IN | 43 / 44 | 39 / 40 | UART1 TX/RXをGPIO matrixで割当 |
+| SW LEFT | 47 | 27 | active-low button input |
+| Pilot LED | 48 | 30 | status output |
 
----
+## Reserved and spare
 
-## 1. システム・通信・電源系
+| GPIO | Treatment |
+|---:|---|
+| 0 | BOOT/download button専用。通常機能へ共用しない |
+| 3 | strapping。spare test pad候補だがreset中は外部駆動禁止 |
+| 26 | N4R2 embedded PSRAM。使用禁止 |
+| 45 / 46 | strapping。spare test pad候補だが量産機能へ割当しない |
 
-ESP32-S3-MINI-1 の安定動作に必須の固定機能ピンです。
+GPIO3/45/46は「空き」ではありますが、安全な汎用spareとは扱いません。GPIO0を含む
+4本はboot/recoveryを優先します。GPIO19/20にはLED、UART、matrixを重ねません。
 
-| 機能         | GPIO   | 物理 Pin | 備考                         |
-| ---------- | ------ | ------ | -------------------------- |
-| USB D-     | GPIO19 | Pin 23 | USB 差動ペア必須                 |
-| USB D+     | GPIO20 | Pin 24 | USB 差動ペア必須                 |
-| MIDI OUT   | GPIO43 | Pin 39 | TRS Type-A / U0TXD         |
-| I2C SDA    | GPIO18 | Pin 22 | OLED（Rev.AではTUSB320とも共有） |
-| I2C SCL    | GPIO16 | Pin 20 | OLED（Rev.AではTUSB320とも共有） |
-| USB2_VBUS_SENSE | GPIO42 | Pin 38 | Rev.B予約：自己給電USB DeviceのVBUS検出。Rev.Aでは未接続 |
-| BAT_VSENSE | GPIO17 | Pin 21 | バッテリー電圧監視（ADC2_CH6）        |
-| EN         | -      | Pin 45 | 10kΩ + 1μF RC 遅延必須         |
-| CHG        | GPIO48 | Pin 30 | 充電中ステータス（10kΩ 外部 PU）       |
-| PGOOD      | GPIO38 | Pin 34 | オンボードPowerPathの入力電源有効検知（10kΩ 外部 PU） |
+## Routing intent
 
----
+行列は5–18、21、33–36へまとめ、MCUからkey fieldへ束として出します。USB pairは
+19/20からconnectorへ最短・等長で配線し、matrixから離します。ADC1の1/2/4は
+slider RC filterへ短く配線します。RGB dataは38からbuffer、series resistor、D1へ
+進み、5V power returnとは平行長距離にしません。UART43/44はTRS edge側へ一組で出します。
 
-## 2. アナログ入力（Slider）・物理 UI
-
-演奏操作および状態表示に関わる入力系です。
-
-| 機能             | GPIO   | 物理 Pin | 備考                     |
-| -------------- | ------ | ------ | ---------------------- |
-| Slider-1 (PB)  | GPIO1  | Pin 5  | ピッチベンド（上方向専用）          |
-| Slider-2 (Mod) | GPIO2  | Pin 6  | モジュレーション（CC#1）         |
-| Slider-3 (Vel) | GPIO4  | Pin 8  | ベロシティ（NoteOn 時に反映）     |
-| LED（統合）        | GPIO6  | Pin 10 | 単色 LED（状態 / 充電表示）      |
-| SW_CENTER      | GPIO40 | Pin 36 | MPE 切替 / 長押し BLE ペアリング |
-| SW_RIGHT       | GPIO39 | Pin 35 | オクターブ Up 等             |
-| SW_LEFT        | GPIO44 | Pin 40 | オクターブ Down（U0RXD 活用）   |
-
----
-
-## 3. キーマトリクス（6 行 × 13 列 / 78 Keys）
-
-最新の PCB 修正を反映したマッピングです。
-
-### 3.1 弦（Row / 検出側）
-
-| 弦    | GPIO   | 物理 Pin |
-| ---- | ------ | ------ |
-| Str1 | GPIO5  | Pin 9  |
-| Str2 | GPIO7  | Pin 11 |
-| Str3 | GPIO8  | Pin 12 |
-| Str4 | GPIO9  | Pin 13 |
-| Str5 | GPIO11 | Pin 15 |
-| Str6 | GPIO10 | Pin 14 |
-
-### 3.2 フレット（Column / 駆動側）
-
-| フレット  | GPIO   | 物理 Pin |
-| ----- | ------ | ------ |
-| Frt0  | GPIO46 | Pin 44 |
-| Frt1  | GPIO45 | Pin 41 |
-| Frt2  | GPIO35 | Pin 31 |
-| Frt3  | GPIO36 | Pin 32 |
-| Frt4  | GPIO37 | Pin 33 |
-| Frt5  | GPIO34 | Pin 29 |
-| Frt6  | GPIO33 | Pin 28 |
-| Frt7  | GPIO47 | Pin 27 |
-| Frt8  | GPIO21 | Pin 25 |
-| Frt9  | GPIO15 | Pin 19 |
-| Frt10 | GPIO14 | Pin 18 |
-| Frt11 | GPIO13 | Pin 17 |
-| Frt12 | GPIO12 | Pin 16 |
-
-### 3.3 ダイオード向き（ROW2COL / STR→FRT）
-
-本設計のキーは **ROW2COL** の向きでダイオードを配置する。
-
-- **STR = Row**
-- **FRT = Col**
-- 接続の向き：**STR → SW → Diode(A→K) → FRT**
-  - **アノード(A) = STR 側**
-  - **カソード(K) = FRT 側**
-
-ファームウェア実装はこれに合わせて、
-
-- **FRT(Col) を 1本ずつ LOW 駆動**（他の Col は HIGH）
-- **STR(Row) を入力（内部PU）として読み取り**、押下時に **LOW** を検出する
-
-として走査する。
-
----
-
-## 4. 基板設計・実装上の重大な留意事項
-
-### 4.1 Strapping Pin（GPIO45 / GPIO46）の入力利用
-
-* GPIO45（Frt1）および GPIO46（Frt0）は **起動モード決定用 Strapping Pin**
-* 起動時にこれらのキーが押されていると、以下の問題が発生する可能性あり
-
-  * 書き込み不可
-  * 正常起動しない
-
-**対策（必須）**
-
-* ファームウェア側で **起動完了後にキーマトリクス走査を開始**する
-* 起動直後の初回スキャン入力は無効化すること
-* 内部プルダウンがデフォルトである点を考慮する
-
----
-
-### 4.2 PSRAM 専用ピンの競合回避
-
-* GPIO26（Pin 26）は ESP32-S3-MINI-1 内部で PSRAM に使用
-* 本設計では **完全に未使用**
-* メモリ競合リスクは回避済み
-
----
-
-### 4.3 アナログ信号のノイズ対策
-
-* スライダー入力および BAT_VSENSE はノイズの影響を受けやすい
-* 以下の信号との長距離並走は値のフラつきを引き起こす可能性あり
-
-  * GPIO6（LED / PWM）
-  * キーマトリクス Row 駆動線
-
-**推奨対策**
-
-* AGND（アナログ GND）ゾーニングの徹底
-* MCU 直近に RC フィルタを配置
-
-  * 例: 100Ω + 0.1μF
-
----
-
-### 4.4 オクターブボタン（SW_LEFT）の復活
-
-* GPIO44（Pin 40）を Frt0 から分離し、SW_LEFT に割り当て
-* オクターブ Down 等の物理操作系を安定確保
-* Pin 44 / 41 / 40 が物理的に隣接しているため、**パターンショートに注意**
-
----
-
-## 5. 本ドキュメントの位置づけ
-
-* 本資料は **Emiuet v3 系の最終ピンアサイン定義**である
-* ファームウェア実装時は、GPIO 定義・初期化・安全対策を必ず本資料に準拠すること
-* 今後 PCB Revision が変わる場合は、必ず本ファイルを更新し、バージョンを明示すること
-
-### Rev.B USB差分
-
-Rev.BではUSB-C #2を固定Device/UFPとし、TUSB320、Host VBUS出力、role
-switchingを採用しない。GPIO42は、保護済みUSB-C #2 VBUSを分圧器または
-コンパレータ経由で監視する候補として予約する。分圧比、保護、閾値は
-Rev.B回路レビューと実測を通して確定し、5VをGPIOへ直結してはならない。
-
----
-
-*End of document.*
+旧GPIO表、BAT_VSENSE、CHG、PGOOD、GPIO42 VBUS monitorはRev.A/撤回案です。

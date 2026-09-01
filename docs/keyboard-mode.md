@@ -2,33 +2,31 @@
 
 ## Positioning
 
-USB HID Keyboard Mode (`TYPE`) is an auxiliary input feature that makes it
-easier to keep Emiuet on a desk without always placing a second keyboard next
-to it. It covers short text entry, search, file operations, shortcuts, and
-auxiliary coding input. Emiuet remains first and foremost a fretboard MIDI
-instrument; its 17 mm pitch, ortholinear 6 × 13 grid, and mostly 1U keys are not
-intended to match a conventional PC keyboard's speed or ergonomics.
+USB HID Keyboard Mode (`TYPE`) is an auxiliary input feature for short text
+entry, search, file operations, navigation, shortcuts, and occasional coding
+input. Emiuet remains first and foremost a fretboard MIDI instrument. Its
+6 × 13 ortholinear playing surface is not intended to reproduce the speed or
+ergonomics of a conventional PC keyboard.
 
 ## Modes and switching
 
 - `MIDI`: matrix presses generate MIDI notes; no HID keyboard reports are generated.
 - `TYPE`: matrix presses generate USB HID keyboard reports; matrix presses and sliders do not generate MIDI.
 
-Hold the four physical corner keys `(row 1, column 1)`, `(row 1, column 13)`,
-`(row 6, column 1)`, and `(row 6, column 13)` together for 2 seconds to switch
-modes. The four corner positions are reserved in the keyboard layout. In MIDI
-mode they retain their musical note behavior until the switch occurs.
+Hold all four physical corner keys—row 1 columns 1 and 13, and row 6 columns 1
+and 13—for two seconds to switch modes. The widely separated, long-hold chord
+reduces accidental switching during performance. A mode change does not restart
+or re-enumerate USB.
 
-The chord requires four widely separated keys and a long hold, making an
-accidental switch during normal performance unlikely. A mode change does not
-restart USB. On every transition the firmware releases all tracked notes or
-the entire HID report and resets pitch bend to center. A USB detach also
-discards pending USB output so stale events are not replayed after reconnect.
+Every transition releases tracked MIDI notes or the complete HID report and
+returns Pitch Bend to center. Because Rev.B is powered by its single USB-C port,
+physical detach also powers the unit down rather than leaving a self-powered USB
+session active.
 
 ## Base layer
 
-Rows below are shown left to right as physical columns 1–13. `MODE` means a
-corner reserved for the mode chord.
+Rows are shown left to right as physical columns 1–13. `MODE` marks a corner
+reserved for the switching chord.
 
 | Row | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -39,13 +37,12 @@ corner reserved for the mode chord.
 | 5 | LCtrl | LGUI | LAlt | Fn | Space | Space | Space | Space | Space | RAlt | Left | Down | Right |
 | 6 | MODE | Esc | Grave | = | Backspace | Delete | Insert | Menu | Home | End | PageUp | Up | MODE |
 
-The HID usages describe US-keyboard positions. The host operating system's
-active keyboard layout determines the character actually produced, so symbol
-legends can differ under non-US layouts.
+The usages follow US keyboard positions. The active host keyboard layout
+determines the character produced, so symbol legends may differ on other layouts.
 
 ## Fn layer
 
-Fn is momentary. It changes the active mapping while held.
+Fn is momentary and changes the active mapping only while held.
 
 | Row | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -56,63 +53,23 @@ Fn is momentary. It changes the active mapping while held.
 | 5 | LCtrl | LGUI | LAlt | Fn | Space | Space | Space | Space | Space | RAlt | Home | PageDown | End |
 | 6 | MODE | F12 | Esc | = | Backspace | Delete | Insert | Menu | Home | End | PageUp | Up | MODE |
 
-The boot-keyboard report supports six simultaneous non-modifier usages plus all
-modifier bits. This covers normal shortcuts such as Shift+letter, Ctrl+C,
-Ctrl+V, and Ctrl+Z. The diode-equipped matrix itself continues to scan all
-physical keys; only the standard USB boot-keyboard report is limited to 6KRO.
+The USB boot-keyboard report supports six simultaneous non-modifier usages plus
+all modifier bits. This covers shortcuts such as Shift+letter, Ctrl+C, Ctrl+V,
+and Ctrl+Z. The diode-equipped matrix continues to scan every physical key; only
+the HID boot-keyboard report is limited to 6KRO.
 
-## OLED
+## OLED feedback
 
-The top status area shows `MIDI OCT:n` in MIDI mode. TYPE mode shows
-`TYPE L0 C:OFF` or the current layer and host-reported Caps Lock LED state.
+The top status area shows `MIDI OCT:n` in MIDI mode. TYPE mode shows `TYPE L0
+C:OFF`, or the current layer and host-reported Caps Lock LED state.
 
-## USB implementation
+## USB boundary
 
-The firmware is locked to ESP-IDF 5.3.4, `esp_tinyusb` 2.0.1~1, and TinyUSB
-0.19.0~2. It installs one persistent full-speed composite USB device:
+Rev.B exposes one persistent full-speed USB composite Device with MIDI and HID
+Keyboard interfaces. MIDI/TYPE switching changes only the internal event route.
+USB Host, DRP/OTG role switching, Host VBUS sourcing, and runtime role changes
+are outside the product scope.
 
-```text
-USB configuration
-├─ interface 0: MIDI Audio Control
-├─ interface 1: MIDI Streaming (OUT 0x01, IN 0x81)
-└─ interface 2: HID boot keyboard (IN 0x82)
-```
-
-This uses three non-control endpoints and is within ESP32-S3's endpoint budget.
-HID reports use a dedicated non-blocking queue. USB detach discards both MIDI
-and HID pending data so events performed while disconnected are never replayed
-after reconnection.
-
-The prototype descriptor retains the repository's existing Espressif VID
-`0x303A` and PID `0x4005`. A production or publicly distributed device needs
-an assigned or otherwise authorized USB VID/PID; this is a release/compliance
-decision, not a PCB requirement.
-
-## USB role and Rev.B boundary
-
-Rev.B formally uses a fixed **USB Device / UFP** role. USB Host, DRP/OTG role
-switching, Host VBUS sourcing, and Device/Host runtime transitions are outside
-the initial product scope by design, not merely unimplemented. MIDI/TYPE mode
-switching therefore never changes the USB configuration.
-
-The checked-in KiCad schematic and manufacturing outputs remain the historical
-Rev.A design. Rev.A U5 is a TUSB320 configured as DRP, and internal +5V reaches
-USB-C #2 VBUS through LM66100. Rev.B replaces those role/source circuits with
-fixed CC pull-downs and protected VBUS presence sensing. See the fixed-role
-decision and hardware delta in [`decisions.md`](decisions.md#10-revb-fixed-usb-device-role).
-
-Emiuet is self-powered from its battery/system rails, so the Rev.B VBUS monitor
-must be connected to the ESP32-S3 and enabled in `esp_tinyusb`. Physical detach
-detection and electrical behavior remain hardware validation items until that
-Rev.B circuit is built.
-
-The software constraints are consistent with Espressif's ESP32-S3 USB Device
-and self-powered Device documentation. The Rev.A historical findings use TI's
-TUSB320 and LM66100 datasheets.
-
-Official references:
-
-- [ESP-IDF 5.3.1 ESP32-S3 USB Device Stack](https://docs.espressif.com/projects/esp-idf/en/v5.3.1/esp32s3/api-reference/peripherals/usb_device.html)
-- [esp_tinyusb self-powered Device configuration](https://components.espressif.com/components/espressif/esp_tinyusb/versions/2.0.1/readme)
-- [TI TUSB320 datasheet](https://www.ti.com/lit/ds/symlink/tusb320.pdf)
-- [TI LM66100 datasheet](https://www.ti.com/lit/ds/symlink/lm66100.pdf)
+The single USB-C port also powers the instrument and supports native USB firmware
+flashing. TUSB320 is retained only to observe UFP attach, cable orientation, and
+Source current advertisement; it does not control USB roles.

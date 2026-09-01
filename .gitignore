@@ -7,6 +7,9 @@
 *.bak
 fp-info-cache
 *.rpt
+.history/
+.kicad_sch
+~*.lck
 
 # ESP-IDF build outputs
 firmware/build*/
