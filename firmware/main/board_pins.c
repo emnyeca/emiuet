@@ -1,52 +1,26 @@
 #include "board_pins.h"
+
 #include "driver/gpio.h"
-#include "esp_err.h"
 
-/* Row pins (Strings) */
+/* The two contiguous groups keep the 6x13 matrix easy to escape on the PCB. */
 const gpio_num_t MATRIX_ROW_PINS[MATRIX_NUM_ROWS] = {
-    GPIO_NUM_5,   /* Str1 */
-    GPIO_NUM_7,   /* Str2 */
-    GPIO_NUM_8,   /* Str3 */
-    GPIO_NUM_9,   /* Str4 */
-    GPIO_NUM_11,  /* Str5 */
-    GPIO_NUM_10   /* Str6 */
+    GPIO_NUM_5, GPIO_NUM_6, GPIO_NUM_7,
+    GPIO_NUM_8, GPIO_NUM_9, GPIO_NUM_10,
 };
 
-/* Column pins (Frets) */
 const gpio_num_t MATRIX_COL_PINS[MATRIX_NUM_COLS] = {
-    GPIO_NUM_46,  /* Frt0  (Strapping) */
-    GPIO_NUM_45,  /* Frt1  (Strapping) */
-    GPIO_NUM_35,  /* Frt2 */
-    GPIO_NUM_36,  /* Frt3 */
-    GPIO_NUM_37,  /* Frt4 */
-    GPIO_NUM_34,  /* Frt5 */
-    GPIO_NUM_33,  /* Frt6 */
-    GPIO_NUM_47,  /* Frt7 */
-    GPIO_NUM_21,  /* Frt8 */
-    GPIO_NUM_15,  /* Frt9 */
-    GPIO_NUM_14,  /* Frt10 */
-    GPIO_NUM_13,  /* Frt11 */
-    GPIO_NUM_12   /* Frt12 */
+    GPIO_NUM_11, GPIO_NUM_12, GPIO_NUM_13, GPIO_NUM_14,
+    GPIO_NUM_15, GPIO_NUM_16, GPIO_NUM_17, GPIO_NUM_18,
+    GPIO_NUM_21,
+    GPIO_NUM_33, GPIO_NUM_34, GPIO_NUM_35, GPIO_NUM_36,
 };
 
-static void configure_input_with_pullup(gpio_num_t pin)
+static void configure_input(gpio_num_t pin, gpio_pullup_t pullup)
 {
-    gpio_config_t io = {
+    const gpio_config_t io = {
         .pin_bit_mask = (1ULL << pin),
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    (void)gpio_config(&io);
-}
-
-static void configure_input_no_pull(gpio_num_t pin)
-{
-    gpio_config_t io = {
-        .pin_bit_mask = (1ULL << pin),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_up_en = pullup,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
@@ -55,7 +29,7 @@ static void configure_input_no_pull(gpio_num_t pin)
 
 static void configure_output(gpio_num_t pin, int initial_level)
 {
-    gpio_config_t io = {
+    const gpio_config_t io = {
         .pin_bit_mask = (1ULL << pin),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
@@ -68,46 +42,26 @@ static void configure_output(gpio_num_t pin, int initial_level)
 
 void board_pins_init_early(void)
 {
-    /* Status LED */
     configure_output(PIN_STATUS_LED, 0);
-
-    /* Buttons
-     * Assumption: buttons are active-low to GND. If your HW is different, adjust pulls here.
-     */
-    configure_input_with_pullup(PIN_SW_CENTER);
-    configure_input_with_pullup(PIN_SW_RIGHT);
-    configure_input_with_pullup(PIN_SW_LEFT);
-
-    /* Power status pins have external pull-ups per pinout doc */
-    configure_input_no_pull(PIN_CHG_STATUS);
-    configure_input_no_pull(PIN_PGOOD_STATUS);
-
-    /* NOTE:
-     * Sliders and ADC pins are configured in ADC driver code, not here.
-     * I2C pins are configured by the I2C driver / u8g2 layer.
-     */
+    configure_input(PIN_SW_CENTER, GPIO_PULLUP_ENABLE);
+    configure_input(PIN_SW_RIGHT, GPIO_PULLUP_ENABLE);
+    configure_input(PIN_SW_LEFT, GPIO_PULLUP_ENABLE);
+    configure_input(PIN_TUSB320_INT_N, GPIO_PULLUP_DISABLE);
 }
+
 void board_pins_init_matrix_prepare(void)
 {
-    /* Configure matrix rows as inputs only. Keep columns untouched for now
-     * to avoid changing strapping pin state until we are ready.
-     */
-    for (int r = 0; r < MATRIX_NUM_ROWS; ++r) {
-#if MATRIX_ROW_INTERNAL_PULLUP
-        configure_input_with_pullup(MATRIX_ROW_PINS[r]);
-#else
-        configure_input_no_pull(MATRIX_ROW_PINS[r]);
-#endif
+    for (int row = 0; row < MATRIX_NUM_ROWS; ++row) {
+        configure_input(MATRIX_ROW_PINS[row],
+                        MATRIX_ROW_INTERNAL_PULLUP ? GPIO_PULLUP_ENABLE
+                                                   : GPIO_PULLUP_DISABLE);
     }
 }
 
 void board_pins_enable_matrix_columns(void)
 {
-    /* Now enable column outputs (drive pins). We default columns HIGH (inactive)
-     * and drive a single column LOW during scan.
-     */
-    for (int c = 0; c < MATRIX_NUM_COLS; ++c) {
-        configure_output(MATRIX_COL_PINS[c], 1);
+    for (int col = 0; col < MATRIX_NUM_COLS; ++col) {
+        configure_output(MATRIX_COL_PINS[col], 1);
     }
 }
 

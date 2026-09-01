@@ -1,26 +1,18 @@
 menu "Emiuet"
 
 config EMIUET_MIDI_TRS_UART_ENABLE
-    bool "Enable TRS MIDI OUT (UART 31250)"
-    default n
+    bool "Enable TRS MIDI OUT (UART1, 31250 baud)"
+    default y
     help
-        Enable the TRS MIDI OUT backend using a UART at 31250 bps (8-N-1).
+        Enable the Type-A TRS MIDI OUT backend on the dedicated UART1 pin pair.
 
-        IMPORTANT:
-        The Emiuet hardware maps TRS MIDI OUT to PIN_MIDI_OUT_TX, which is UART0 TX.
-        If your console is also on UART0 (CONFIG_ESP_CONSOLE_UART_NUM=0), you must
-        move the console away from UART0 (e.g., USB Serial/JTAG) before enabling
-        this, otherwise logs and MIDI will conflict.
-
-config EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT
-    bool "Allow UART0 console conflict (unsafe)"
-    default n
+config EMIUET_MIDI_TRS_IN_ENABLE
+    bool "Enable isolated TRS MIDI IN (UART1, 31250 baud)"
+    default y
     depends on EMIUET_MIDI_TRS_UART_ENABLE
     help
-        If enabled, the firmware will attempt to initialize UART0 for MIDI even if
-        the ESP-IDF console is configured to use UART0.
-
-        This is not recommended; it is intended only for experimentation.
+        Read the optocoupler output on PIN_MIDI_IN_RX. The RX parser feeds the
+        same MIDI input layer as USB MIDI RX.
 
 config EMIUET_MIDI_TASK_TRS_PRIORITY
     int "TRS MIDI sender task priority"
@@ -40,24 +32,36 @@ config EMIUET_MIDI_TASK_USB_PRIORITY
     help
         Priority for the USB MIDI sender task.
 
-config EMIUET_USB_SELF_POWERED_VBUS_MONITOR
-    bool "Enable self-powered USB Device VBUS monitor"
-    default n
+config EMIUET_RGB_ENABLE
+    bool "Enable 78-key SK6812 RGB chain"
+    default y
     help
-        Enable esp_tinyusb's Device-side VBUS presence monitor. Rev.B must
-        enable this after the protected USB-C #2 VBUS divider/comparator is
-        physically connected. Rev.A leaves the proposed GPIO unconnected, so
-        this remains disabled for Rev.A builds.
+        Drive one 78-pixel chain through Espressif led_strip and the RMT DMA
+        backend. This option never enables bit-bang output.
 
-config EMIUET_USB_VBUS_MONITOR_GPIO
-    int "USB-C #2 VBUS monitor GPIO"
-    range 0 48
-    default 42
-    depends on EMIUET_USB_SELF_POWERED_VBUS_MONITOR
+config EMIUET_RGB_DEFAULT_BUDGET_MA
+    int "RGB current budget for Type-C Default current"
+    range 0 400
+    default 200
+    depends on EMIUET_RGB_ENABLE
     help
-        GPIO receiving the 3.3V-safe VBUS-valid signal. Never connect USB VBUS
-        directly to an ESP32-S3 GPIO. GPIO42 is reserved for the current Rev.B
-        Device-only proposal.
+        Conservative LED-only budget. Validation must confirm this value because
+        CC Default does not distinguish USB 2.0 500 mA from USB 3.x 900 mA.
+
+config EMIUET_RGB_1P5A_BUDGET_MA
+    int "RGB current budget for 1.5 A or 3 A advertisement"
+    range 0 1200
+    default 1000
+    depends on EMIUET_RGB_ENABLE
+    help
+        LED-only budget used for both 1.5 A and 3 A advertisements. Rev.B caps
+        the whole product at 1.5 A and reserves the remainder for logic.
+
+config EMIUET_RGB_GLOBAL_BRIGHTNESS_MAX
+    int "Maximum user global RGB brightness (0..255)"
+    range 1 255
+    default 96
+    depends on EMIUET_RGB_ENABLE
 
 config EMIUET_MIDI_TASK_BLE_PRIORITY
     int "BLE MIDI sender task priority"

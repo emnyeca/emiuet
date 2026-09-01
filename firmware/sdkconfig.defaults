@@ -5,10 +5,6 @@
 CONFIG_TINYUSB_MIDI_COUNT=1
 CONFIG_TINYUSB_HID_COUNT=1
 
-# Rev.A has no ESP32-S3 VBUS monitor connection. Rev.B must enable this after
-# the protected GPIO42 sense circuit is present.
-# CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR is not set
-
 # Development-only: keep the matrix simulator OFF by default so prototype
 # bring-up uses real matrix scan behavior.
 # CONFIG_MATRIX_SIM_ENABLED_DEFAULT is not set
@@ -16,3 +12,11 @@ CONFIG_TINYUSB_HID_COUNT=1
 # Target hardware (EUB-04): ESP32-S3-MINI-1-N4R2 has 4MB flash.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+
+# Rev.B peripherals and conservative, validation-adjustable RGB budgets.
+CONFIG_EMIUET_MIDI_TRS_UART_ENABLE=y
+CONFIG_EMIUET_MIDI_TRS_IN_ENABLE=y
+CONFIG_EMIUET_RGB_ENABLE=y
+CONFIG_EMIUET_RGB_DEFAULT_BUDGET_MA=200
+CONFIG_EMIUET_RGB_1P5A_BUDGET_MA=1000
+CONFIG_EMIUET_RGB_GLOBAL_BRIGHTNESS_MAX=96

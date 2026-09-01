@@ -16,8 +16,8 @@
 #include "emiuet_logo.xbm"
 #include "driver/gpio.h"
 
-#include "adc_manager.h"
 #include "board_pins.h"
+#include "board_i2c.h"
 #include "slider.h"
 
 #include "matrix_scan.h"
@@ -30,6 +30,7 @@
 #include "input_router.h"
 #include "keyboard_input.h"
 #include "usb_hid_keyboard.h"
+#include "usb_power.h"
 
 #include "midi_mpe.h"
 #include "midi_out.h"
@@ -56,16 +57,8 @@ static u8g2_t s_u8g2;
 // -------------------------
 static void i2c_init_and_scan(void)
 {
-    i2c_master_bus_config_t bus_cfg = {
-        .i2c_port = I2C_NUM_0,
-        .scl_io_num = I2C_SCL_GPIO,
-        .sda_io_num = I2C_SDA_GPIO,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = false,
-    };
-
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &s_i2c_bus));
+    ESP_ERROR_CHECK(board_i2c_init());
+    s_i2c_bus = board_i2c_bus();
 
     printf("[OLED] I2C init OK (SCL=GPIO%d, SDA=GPIO%d, %d Hz)\n",
            I2C_SCL_GPIO, I2C_SDA_GPIO, I2C_CLK_HZ);
@@ -136,23 +129,6 @@ static grid_layout_t grid_make_layout(int cell_w, int cell_h, int gap_x, int gap
 // -------------------------
 // Power UI / Debug inputs
 // -------------------------
-#define PIN_PGOOD           ((int)PIN_PGOOD_STATUS)
-#define PIN_CHG             ((int)PIN_CHG_STATUS)
-
-#define POWER_UPDATE_MS     500
-
-// Battery icon geometry (yellow area)
-#define BAT_X       2
-#define BAT_Y       3
-#define BAT_W       22
-#define BAT_H       10
-#define NUB_W       2
-#define NUB_H       6
-
-#define BAR_H       6
-#define BAR_W       5
-#define BAR_GAP     1
-
 // Status bar icons (yellow area)
 #define STATUS_ICON_Y              1
 #define STATUS_ICON_MARGIN_RIGHT   2
@@ -166,27 +142,6 @@ typedef enum {
     BLE_UI_ENABLED,
     BLE_UI_ADVERTISING,
 } ble_ui_state_t;
-
-// 初期閾値（未確定のままでOK：後で微調整）
-#define V_TH_3_TO_2_MV   3950
-#define V_TH_2_TO_1_MV   3750
-#define V_TH_LOW_MV      3550
-
-typedef enum {
-    PWR_STATE_FAULT = 0,
-    PWR_STATE_CHARGING,   // ⚡
-    PWR_STATE_CHARGED,    // 3 bars fixed
-    PWR_STATE_BAT_3,
-    PWR_STATE_BAT_2,
-    PWR_STATE_BAT_1,
-    PWR_STATE_BAT_1_BLINK,
-} power_ui_state_t;
-
-typedef struct {
-    power_ui_state_t state;
-    int bars;              // 0..3（表示用）
-    bool blink_on;         // 点滅のON/OFF（描画で使用）
-} power_ui_t;
 
 // -------------------------
 // Grid UI tweaks
@@ -234,51 +189,6 @@ static void draw_cell_doublebox_fill(
             u8g2_DrawHLine(u8g2, x, yy, w);
         }
     }
-}
-
-// -------------------------
-// ADC access (centralized)
-// -------------------------
-static bool s_adc_ok = false;
-
-static void gpio_init_inputs(void)
-{
-    gpio_config_t io = {0};
-
-    // PGOOD / CHG (pull-up already external, but internal pull-up harmless)
-    io.mode = GPIO_MODE_INPUT;
-    io.pin_bit_mask = (1ULL << PIN_PGOOD) | (1ULL << PIN_CHG);
-    io.pull_up_en = 1;
-    io.pull_down_en = 0;
-    gpio_config(&io);
-}
-
-static void adc_init(void)
-{
-    s_adc_ok = adc_manager_init();
-    if (!s_adc_ok) {
-        ESP_LOGW("OLED", "adc_manager_init failed; falling back to slider proxy");
-    }
-}
-
-static int read_adc_mv_batvsense(void)
-{
-    if (!s_adc_ok) {
-        /* No ADC unit available; approximate battery from pitch-bend slider.
-         * (This is a fallback path; normal behavior reads PIN_BAT_VSENSE via adc_manager.)
-         */
-        uint16_t raw = slider_read_pitchbend();
-        int slider_mv = (raw * 3300) / 1023;
-        return 3300 + (slider_mv * 900) / 3300; // same formula as before
-    }
-
-    int mv = 0;
-    if (adc_manager_read_mv(PIN_BAT_VSENSE, &mv) != ESP_OK) {
-        uint16_t raw = slider_read_pitchbend();
-        int slider_mv = (raw * 3300) / 1023;
-        return 3300 + (slider_mv * 900) / 3300;
-    }
-    return mv; // Vadc
 }
 
 // -------------------------
@@ -417,140 +327,17 @@ static void boot_logo_anim(u8g2_t *u8g2)
     ESP_LOGI("BOOT", "boot anim end");
 }
 
-static void draw_lightning(u8g2_t *u8g2, int x, int y)
+static void draw_usb_power_badge(u8g2_t *u8g2)
 {
-    // 7x7 くらいの簡易⚡（線だけで描く）
-    // 中央に収まるように置く想定
-    u8g2_DrawLine(u8g2, x+4, y+0, x+1, y+4);
-    u8g2_DrawLine(u8g2, x+1, y+4, x+4, y+4);
-    u8g2_DrawLine(u8g2, x+4, y+4, x+2, y+7);
-    u8g2_DrawLine(u8g2, x+2, y+7, x+6, y+3);
-    u8g2_DrawLine(u8g2, x+6, y+3, x+4, y+3);
+    const usb_power_status_t status = usb_power_get_status();
+    const char *label = "USB?";
+    if (status.attached_as_sink) {
+        label = (status.advertised_current == USB_CURRENT_1P5A ||
+                 status.advertised_current == USB_CURRENT_3A) ? "USB1.5" : "USB-D";
+    }
+    u8g2_SetFont(u8g2, u8g2_font_5x7_tf);
+    u8g2_DrawStr(u8g2, 1, 11, label);
 }
-
-static void draw_battery_icon(u8g2_t *u8g2, const power_ui_t *p)
-{
-    // 点滅OFF時に「消える」対象があるので、消したい時は描かない。
-    // ただし枠点滅(Fault)とバー点滅(low)を分ける。
-
-    const bool fault = (p->state == PWR_STATE_FAULT);
-    const bool lowblink = (p->state == PWR_STATE_BAT_1_BLINK);
-    const bool charging = (p->state == PWR_STATE_CHARGING);
-
-    // 枠（Fault時は枠を点滅）
-    if (!fault || p->blink_on) {
-        u8g2_DrawFrame(u8g2, BAT_X, BAT_Y, BAT_W, BAT_H);
-        // nub
-        int nub_y = BAT_Y + (BAT_H - NUB_H) / 2;
-        u8g2_DrawBox(u8g2, BAT_X + BAT_W, nub_y, NUB_W, NUB_H);
-    }
-
-    if (fault) {
-        // 0 bars、枠点滅のみ
-        return;
-    }
-
-    if (charging) {
-        // ⚡のみ（アニメ無し）
-        int cx = BAT_X + (BAT_W - 7) / 2;
-        int cy = BAT_Y + (BAT_H - 7) / 2;
-        draw_lightning(u8g2, cx, cy);
-        return;
-    }
-
-    // バー描画（chargedは3固定、batteryはbarsに従う）
-    int bars = p->bars; // 0..3
-    if (bars < 0) bars = 0;
-    if (bars > 3) bars = 3;
-
-    // 内部の左上（バー基準位置）
-    int inner_x = BAT_X + 2;
-    int inner_y = BAT_Y + 2;
-
-    // 低電圧警告：1バーのみ、バーだけ点滅
-    bool draw_bars = true;
-    if (lowblink && !p->blink_on) {
-        draw_bars = false;
-    }
-
-    if (!draw_bars) return;
-
-    for (int i = 0; i < bars; i++) {
-        int bx = inner_x + i * (BAR_W + BAR_GAP);
-        u8g2_DrawBox(u8g2, bx, inner_y, BAR_W, BAR_H);
-    }
-}
-
-static power_ui_t s_pwr_ui = {0};
-
-static int calc_bars_from_vbat(int vbat_mv)
-{
-    if (vbat_mv >= V_TH_3_TO_2_MV) return 3;
-    if (vbat_mv >= V_TH_2_TO_1_MV) return 2;
-    if (vbat_mv >= V_TH_LOW_MV)    return 1;
-    return 1; // low warningでもバーは1（点滅で表現）
-}
-
-static void power_ui_update_500ms(power_ui_t *p)
-{
-    // 実ピン読み（デバッグ時は上書き）
-    bool ext_power = (gpio_get_level(PIN_PGOOD) == 0);
-    bool charging  = (gpio_get_level(PIN_CHG) == 0);
-
-    if (ext_power) {
-        if (charging) {
-            p->state = PWR_STATE_CHARGING; // ⚡
-            p->bars = 0;
-        } else {
-            p->state = PWR_STATE_CHARGED;  // 3バー固定
-            p->bars = 3;
-        }
-        return;
-    }
-
-    // ---- Battery mode ----
-    /* Read vbat from PIN_BAT_VSENSE. */
-    int vbat_mv = read_adc_mv_batvsense(); // read battery sense (mV)
-
-    int bars = calc_bars_from_vbat(vbat_mv);
-    p->bars = bars;
-
-    if (vbat_mv < V_TH_LOW_MV) {
-        p->state = PWR_STATE_BAT_1_BLINK;
-    } else if (bars == 1) {
-        p->state = PWR_STATE_BAT_1;
-    } else if (bars == 2) {
-        p->state = PWR_STATE_BAT_2;
-    } else {
-        p->state = PWR_STATE_BAT_3;
-    }
-}
-
-static led_state_t led_state_from_power_ui(const power_ui_t *p)
-{
-    switch (p->state) {
-        case PWR_STATE_FAULT:
-            return LED_ST_FAULT;
-
-        case PWR_STATE_CHARGING:
-            return LED_ST_CHARGING;
-
-        case PWR_STATE_CHARGED:
-            return LED_ST_CHARGED;
-
-        case PWR_STATE_BAT_1_BLINK:
-            return LED_ST_LOW_BATT;
-
-        case PWR_STATE_BAT_1:
-        case PWR_STATE_BAT_2:
-        case PWR_STATE_BAT_3:
-        default:
-            return LED_ST_SYSTEM_NORMAL;
-    }
-}
-
-static bool power_ui_is_fault(const power_ui_t *p) { return p->state == PWR_STATE_FAULT; }
-static bool power_ui_is_lowblink(const power_ui_t *p) { return p->state == PWR_STATE_BAT_1_BLINK; }
 
 static bool stringwise_is_enabled(void)
 {
@@ -589,9 +376,8 @@ static bool ui_blink_on_2hz(int64_t now_ms)
     return ((now_ms / 250) % 2) == 0;
 }
 
-static bool ui_needs_fast_refresh(const power_ui_t *p, ble_ui_state_t ble_state)
+static bool ui_needs_fast_refresh(ble_ui_state_t ble_state)
 {
-    if (power_ui_is_fault(p) || power_ui_is_lowblink(p)) return true;
     return ble_state == BLE_UI_ADVERTISING;
 }
 
@@ -642,24 +428,12 @@ static void draw_ble_icon(u8g2_t *u8g2, int x, int y)
     u8g2_DrawLine(u8g2, cx, y + 9,  x + 3, y + 12);
 }
 
-// 点滅位相：描画のたびにこれを更新して使う
-static void power_ui_update_blink_phase(power_ui_t *p, int64_t now_ms)
-{
-    if (power_ui_is_fault(p)) {
-        // Fault 2Hz: 250ms ON/OFF
-        p->blink_on = ((now_ms / 250) % 2) == 0;
-    } else if (power_ui_is_lowblink(p)) {
-        // Low 1Hz: 500ms ON/OFF
-        p->blink_on = ((now_ms / 500) % 2) == 0;
-    } else {
-        p->blink_on = true;
-    }
-}
+
 
 static void draw_fixed_layout(u8g2_t *u8g2)
 {
-    // --- Yellow area (top): Battery + active input mode ---
-    draw_battery_icon(u8g2, &s_pwr_ui);
+    // --- Yellow area (top): USB current class + active input mode ---
+    draw_usb_power_badge(u8g2);
 
     // ---- Cell size presets ----
     // Balanced: fits nicely with margins
@@ -786,27 +560,9 @@ static void oled_task(void *arg)
     printf("[OLED] u8g2 init done. Drawing...\n");
 
     // ここから先でステータス表示を開始
-    gpio_init_inputs();
-    adc_init();
-
-    int64_t next_update_ms = 0;
     TickType_t last_wake = xTaskGetTickCount();
 
     while (1) {
-        int64_t now_ms = esp_timer_get_time() / 1000;
-
-        // 500ms周期で入力更新
-        if (now_ms >= next_update_ms) {
-            next_update_ms = now_ms + POWER_UPDATE_MS;
-            power_ui_update_500ms(&s_pwr_ui);
-
-            led_status_set_state(led_state_from_power_ui(&s_pwr_ui));
-        }
-
-
-        // 点滅位相更新（ループ頻度が高いほど滑らか）
-        power_ui_update_blink_phase(&s_pwr_ui, now_ms);
-
         // 描画（点滅を見せるため定期リフレッシュ）
         u8g2_FirstPage(&s_u8g2);
         do {
@@ -815,10 +571,10 @@ static void oled_task(void *arg)
 
         /* Adaptive refresh rate:
          * - Normal: 100ms (10fps)
-         * - When blinking (power fault/low-batt or BLE advertising): 50ms (20fps)
+         * - When blinking (BLE advertising): 50ms (20fps)
          */
         ble_ui_state_t ble_state = ble_get_state();
-        bool fast = ui_needs_fast_refresh(&s_pwr_ui, ble_state);
+        bool fast = ui_needs_fast_refresh(ble_state);
         int frame_ms = fast ? 50 : 100;
 
         TickType_t frame_ticks = pdMS_TO_TICKS(frame_ms);
