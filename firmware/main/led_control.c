@@ -60,9 +60,6 @@ void led_control_handle_midi(uint8_t status, uint8_t data1, uint8_t data2)
         s_note_channels[data1] |= (uint16_t)(1u << channel);
     } else if (type == 0x80u || (type == 0x90u && data2 == 0)) {
         s_note_channels[data1] &= (uint16_t)~(1u << channel);
-    } else if (type == 0xB0u && data1 == 7u) {
-        const uint16_t scaled = (uint16_t)data2 * CONFIG_EMIUET_RGB_GLOBAL_BRIGHTNESS_MAX / 127u;
-        s_brightness = (uint8_t)scaled;
     } else if (type == 0xB0u && data1 == 123u) {
         const uint16_t keep_mask = (uint16_t)~(1u << channel);
         for (unsigned note = 0; note < 128; ++note) s_note_channels[note] &= keep_mask;

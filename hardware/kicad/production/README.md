@@ -1,6 +1,5 @@
-# Rev.A Historical Production Outputs
+# Rev.A historical production outputs
 
-This directory and the existing `Emiuet.kicad_pcb` belong to the Rev.A/historical
-design state. References to BQ24074, battery, boost, PowerPath, dual USB, or Host
-VBUS are not current Rev.B requirements. Do not regenerate these outputs from the
-Rev.B schematic; Rev.B needs a separate placement/routing pass after schematic review.
+このdirectoryと既存の`Emiuet.kicad_pcb`はRev.A/historical design stateに属します。BQ24074、internal battery、boost、PowerPath、dual USB、Host VBUSの記述は現行Rev.B requirementではありません。
+
+Rev.B schematicからこれらのoutputを再生成しないでください。schematic review後にRev.B用のplacement/routingを別工程として行い、production outputsを作り直します。

@@ -1,59 +1,85 @@
-# Emiuet
+# Emiuet (EUB-04)
 
-Emiuet Rev.Bは、78キーの演奏面を持つUSB-powered MIDI/HID controllerです。
-製品仕様の正本はこのリポジトリです。Validationリポジトリは試験方法と結果だけを管理します。
+<p align="center">
+  <img src="docs/assets/logo.png" width="420" alt="Emiuet logo">
+</p>
 
-## Rev.B current architecture
+Fretboard-style MIDI instrument for guitarists.
 
-```text
-single USB-C Device/UFP
-├─ VBUS → input protection/switch → +5V_LED → SK6812 MINI-E x78
-│                                  └→ 3.3V regulator → ESP32-S3/OLED/logic
-├─ CC1/CC2 → TUSB320 (fixed UFP, I2C status)
-└─ D-/D+ → protection → ESP32-S3 native USB
-                         └─ USB MIDI + HID Keyboard composite device
+## What Emiuet is
 
-USB/TRS MIDI RX → MIDI parser → LED state → logical/physical map
-                → current-limited renderer → RMT DMA → RGB chain
-```
+**Emiuet** is a 6 × 13 fretboard MIDI controller built around the way guitarists
+think: strings, fret positions, chord shapes, voicings, and controlled expressive
+gestures. It is not intended to become a general-purpose pad controller or a
+piano-style keyboard.
 
-Rev.Bの外部電源は単一USB-Cの5Vだけです。内蔵電池、充電器、PowerPath、
-5V boost、USB Host、DRP、Host VBUS sourceは搭載しません。モバイル用途では
-外付けUSB power bankを使います。
+The thirteen positions preserve familiar guitar-derived voicings without forcing
+octave shifts or omissions. Expressive controls are deliberately constrained so
+that performance remains predictable: Pitch Bend is upward-only, and the optional
+MPE-style mode separates strings by MIDI channel rather than attempting a fully
+general per-note control system.
 
-TUSB320は残しますが、`PORT=L`の固定UFPです。CC attach、orientation、Sourceの
-Default/1.5A/3A advertisementだけをI2Cで読みます。3Aを検出しても製品上限は
-5V/1.5Aのままです。Default時のLED予算は安全側に倒し、最終値は実機検証で決めます。
+Emiuet is part of **Emnyeca's Utility Build Series (EUB)**. The project prioritizes
+musical intent, reliability, and a clear physical mental model over feature breadth.
 
-## Main functions
+## Playing surface and controls
 
-- ESP32-S3-MINI-1-N4R2、native USB D-/D+ (`GPIO19/20`)
-- USB MIDI + USB HID Keyboard composite Device
-- 6×13 key matrix、3 analog sliders、3 buttons、OLED
-- Type-A TRS MIDI OUTと、絶縁Type-A TRS MIDI IN
-- SK6812 MINI-E ×78、単一chain、RMT DMA
-- BLE capabilityは保持するがRev.B hardware acceptanceの必須条件ではない
+- 6 strings × 13 positions: 78 low-profile keys
+- Three sliders: Velocity, CC#1 Modulation, and upward-only Pitch Bend
+- Constrained stringwise MPE-style performance mode
+- Minimal OLED feedback designed to avoid distracting from performance
+- USB MIDI, Type-A TRS MIDI OUT/IN, and BLE capability
+- Auxiliary USB HID Keyboard mode (`TYPE`)
+- One RGB LED under each key for fretboard visualization
 
-## Hardware files
+`TYPE` is a desk-convenience feature for short text, navigation, and shortcuts.
+It reuses the physical matrix but does not change Emiuet's identity as a musical
+instrument. See [USB HID Keyboard Mode](docs/keyboard-mode.md) for the complete
+layout and Fn layer.
 
-- `hardware/kicad/Emiuet.kicad_sch`: Rev.B current schematic draft
-- `hardware/kicad/Emiuet_RevA.kicad_sch`: Rev.A historical schematic
-- `hardware/kicad/Emiuet.kicad_pcb`: Rev.A historical layout。今回のRev.B作業では未変更
-- `docs/pinout-v3.md`: Rev.B GPIO source of truth
-- `docs/decisions.md`: current design decisions and validation boundaries
+## Rev.B hardware summary
 
-Rev.B schematicは設計レビュー用の初期たたき台です。既存PCBとのconnectivityは
-一致しません。Rev.B PCB placement/routing/outlineは次工程で全面更新します。
+Rev.B simplifies Emiuet into a USB-powered Device/UFP:
 
-## Firmware
+- ESP32-S3-MINI-1 using native USB
+- One USB-C port for 5 V power, USB MIDI, USB HID, and firmware flashing
+- Persistent USB MIDI + HID Keyboard composite device
+- TUSB320 used only for USB-C attach, orientation, and Source current detection
+- No USB Host, DRP, Host VBUS sourcing, internal battery, charger, or PowerPath
+- SK6812 MINI-E ×78 on one data chain with a 3.3 V-to-5 V buffer
+- Firmware-limited LED brightness/current based on conservative USB power budgets
 
-ESP-IDF 5.3.4を使用します。USB受信、LED状態、renderer、RMT transportを分離し、
-複雑なSysEx protocolはまだ定義していません。初期受信はNote On/Off、CC7による
-global brightness、CC123 All Notes Offを扱います。
+Mobile use is supported with an external USB power bank. A 3 A Source advertisement
+does not raise Emiuet's internal design ceiling above approximately 5 V / 1.5 A.
 
-詳細は `firmware/README.md` と `docs/keyboard-mode.md` を参照してください。
+## MIDI and RGB behavior
 
-## Historical material
+Performance logic remains independent of individual transports. MIDI generation
+must not block on USB, TRS, or BLE output. Incoming USB or TRS Note On/Off messages
+can drive fretboard visualization through a transport-independent LED state layer.
 
-Rev.Aおよび撤回済みRev.B案は `docs/history/` と `hardware/kicad/Emiuet_RevA.kicad_sch`
-に保存しています。そこにあるbattery、dual USB、Host/DRPの記述は現行仕様ではありません。
+The external protocol for device-level LED settings such as global brightness is
+not defined yet. Standard musical Control Change messages are not repurposed for
+device configuration; a future explicit protocol may use SysEx.
+
+## Hardware and firmware sources
+
+- Current Rev.B schematic draft: `hardware/kicad/Emiuet.kicad_sch`
+- Historical Rev.A schematic: `hardware/kicad/Emiuet_RevA.kicad_sch`
+- Rev.B GPIO allocation: `docs/pinout-v3.md`
+- Current design decisions: `docs/decisions.md`
+- Firmware: ESP-IDF 5.3.4 + FreeRTOS; OLED rendering uses u8g2
+
+The checked-in PCB layout is historical Rev.A data and was not updated with the
+Rev.B schematic. Rev.B placement and routing require a separate PCB redesign.
+
+## Project status
+
+The Rev.B schematic is an architecture draft, not a fabrication-ready release.
+Protection parts, regulator and MIDI interface selections, passive values, ERC
+cleanup, PCB layout, and physical validation remain open engineering work.
+
+## License
+
+To be determined. An open-source-friendly license is planned after prototype
+validation.

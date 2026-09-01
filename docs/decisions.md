@@ -1,64 +1,87 @@
-# Rev.B design decisions
+# Emiuet 現行設計判断
 
-## Product boundary
+この文書はEmiuetの現在有効なproduct decisionsの正本です。実装済み範囲や作業履歴ではなく、変更時に守るべき目的、主従関係、非自明な制約を記録します。撤回済みのRev.A/旧Rev.B判断は `history/rev-a-and-superseded-decisions.md` に分離します。
 
-Rev.Bは単一USB-Cから給電されるUSB Device/UFPです。USB Host、DRP、OTG role
-switching、Host VBUS source、内蔵電池、充電は製品境界外です。USB MIDIとUSB HID
-KeyboardはESP32-S3 native USB上の一つのComposite Deviceとして常時列挙します。
+## 1. Product identity: guitar-first instrument
 
-## Power and Type-C
+Emiuetはguitarists向けのfretboard MIDI instrumentです。general-purpose MIDI controller、piano-style keyboard、商用MIDI keyboardとのfeature parityを目的にしません。
 
-VBUSはresettable fuseまたはeFuse/load switch、TVS、必要なEMI conditioningを通って
-5V railになります。5V railはRGBへ直接配電し、3.3V regulatorを介してMCU/OLED/
-logicへ給電します。hardware ceilingは5V/1.5Aです。
+strings、fret positions、chord shapes、voicings、guitar由来のmuscle memoryを中心に設計します。USB、RGB、TYPE modeなどのsubsystemはこの演奏体験を補助する手段であり、product identityより上位ではありません。
 
-TUSB320は削除しません。`PORT`をGND、`ADDR`をGND (`0x60`)、`EN_N`をGNDとし、
-CC1/CC2のRd、attach、orientation、Source current advertisementを担当します。
-`VBUS_DET`はTI指定の900kΩを介してVBUSへ接続します。I2C register `0x08[5:4]`
-でDefault/1.5A/3A、`0x09[7:6]`でAttached.SNK、`0x09[5]`で向きを読みます。
-Sourceが接続中にRpを変更する場合に備え、firmwareはTIの指示どおり定期的に
-I2C soft resetを行います。
+## 2. 6 × 13 playing surface
 
-CCのDefault表示だけではUSB 2.0の500mAとUSB 3.xの900mAを区別できません。
-したがってDefault予算は保守的にし、1.5A/3A表示は同じ1.5A ceilingへ丸めます。
-現在のLED-only候補値200mA/1000mAとbrightness上限96/255は検証用初期値で、
-量産確定値ではありません。
+key matrixは6 rows × 13 columnsに固定します。13 positionsは数値上の対称性ではなく、E-root/A-rootを含むguitar由来のvoicingをoctave shiftや強制的な省略なしで扱うために選択しています。
 
-## RGB
+PCB幅とrouting complexityが増えても、guitaristsのharmonic thinkingを維持することを優先します。
 
-SK6812 MINI-Eを6×13、合計78個搭載します。電源は各pixelへ並列、dataだけを
-single daisy chainにします。各pixelに100nF local bypass、5V入口付近に
-470–1000µF級bulk capacitorの実装余地を設けます。値と実装個数はV2/V3で確定します。
+## 3. Pitch Bend
 
-ESP32-S3 `GPIO38`から5V給電のSN74AHCT1G125へ入り、33–100Ω候補のseries resistorを
-経て最初のDINへ接続します。初期値は74AHCT1G125、68Ω、100nF/pixel、680µFです。
-これらは検証対象であり、BOM lock前に波形、EMI、突入、温度を確認します。
+Pitch Bendはstring bendingに対応する上方向のみ、linear curve、固定maximum range、自動center returnとします。下方向または対称的なbendへ一般化しません。
 
-firmwareはEspressif `led_strip`のRMT backendとDMAを使います。bit-bangは使いません。
-物理serpentine chainと6×13論理座標はmapping functionで分離します。
+これは実装上の暫定制限ではなく、予測可能な演奏表現を守る意図的な制約です。
 
-## MIDI
+## 4. Constrained MPE
 
-TRS MIDI OUTはType-Aを維持します。TRS MIDI INも追加します。UART1を
-`GPIO43(TX)/GPIO44(RX)`へ割り当て、INはMIDI Associationの電気仕様に従う
-optocoupler絶縁回路とします。受信jackのsignal/shieldにDC ground pathを作りません。
-正確なoptocoupler、TRS jack、resistor値は部品入手性を含めVAL-CORE-01で確定します。
+任意のStringwise Bend modeでは、各stringを独立MIDI channelへ割り当てます。Pitch Bendは直近に演奏したstringを対象とし、bend中は対象を固定します。full generalized MPEではなく、guitar-like mental modelを保つ限定的なchannel separationを採用します。
 
-## Removed Rev.A circuits
+表現力を増やす場合も、channel managementの複雑さが演奏の予測可能性を損なわないことを判断基準にします。
 
-- charging-only USB-C、Li-ion connector、NTC、BQ24074、charge configuration
+## 5. Minimal OLED
+
+OLEDはperformance feedbackに限定します。menu-driven parameter editorや高密度情報表示を本体UIの中心にしません。複雑な設定UIが必要な場合は外部device側を優先し、演奏中の視覚的負担とfirmware責務を増やしません。
+
+## 6. MIDI transport philosophy
+
+USB、TRS、BLEは独立したtransportです。musical logicはtransport I/Oを待たず、dedicated sender taskへ0-waitでenqueueします。通常のrealtime priorityはTRS > USB = BLEで、同時出力を許可し、自動fallbackは前提にしません。
+
+Pitch BendとCC#1のようなcontinuous controlはchannel単位でcoalesceでき、Note On/Offなどのdiscrete eventは順序を維持します。BLE transportがstubの間はroutingで有効化しません。
+
+TRS MIDIは薄型筐体に適したType-Aを使用し、5-pin DIN MIDIは採用しません。Rev.BではType-A TRS MIDI OUTを維持し、isolated Type-A TRS MIDI INも追加します。
+
+## 7. Auxiliary TYPE mode
+
+USB HID Keyboard Mode (`TYPE`) はdesk上での短いtext entry、search、navigation、shortcutを補助する機能です。EmiuetをPC keyboardとして再定義せず、通常keyboardの速度やergonomicsを目標にしません。
+
+MIDIとHID Keyboardは一つのpersistent composite USB Deviceとして列挙し、mode switchingでUSBを再enumerateしません。4 corner keysを2秒保持してmodeを切り替え、transition時はtracked note/keyとpending stateを解放します。actual layoutは `keyboard-mode.md` をユーザー向け正本とします。
+
+## 8. Rev.B USB and power
+
+Rev.Bはsingle USB-C、USB Device/UFP onlyです。一つのportで5 V power、USB MIDI、USB HID、firmware flashingを担います。USB Host、DRP、OTG role switching、Host VBUS source、runtime role switching、internal battery、charger、PowerPathは採用しません。
+
+power architectureは次の通りです。
+
+```text
+USB-C VBUS
+→ protection / input conditioning
+→ 5 V rail → RGB LEDs
+             └→ 3.3 V regulator → ESP32-S3 / OLED / logic
+```
+
+hardware ceilingは約5 V / 1.5 Aです。mobile useはexternal USB power bankを使用します。
+
+## 9. TUSB320
+
+TUSB320は削除せず、fixed UFPのCC/current detectorとして限定利用します。`PORT=L`、`ADDR=L` (`0x60`)、`EN_N=L`とし、CC1/CC2 attach、orientation、Default/1.5 A/3 A Source advertisementをI2Cで取得します。USB Host、DRP、role control、VBUS source controlには使いません。
+
+Default advertisementではUSB 2.0 500 mAとUSB 3.x 900 mAをCCだけから区別できないため、firmwareは安全側のLED budgetを選びます。1.5 A/3 Aは同じ1.5 A hardware ceilingへ丸めます。接続中のRp変更を反映するため、firmwareはdatasheetに従ってperiodic I2C soft resetを行います。
+
+## 10. RGB fretboard visualization
+
+SK6812 MINI-Eを全78 keysへ搭載し、dataはsingle serpentine daisy chain、5 V/GNDはparallel distributionとします。physical chain orderと6 × 13 logical fret/string coordinatesをfirmware mappingで分離します。
+
+ESP32-S3 GPIO38から5 V AHCT bufferとseries resistorを介してDINへ接続します。各pixelのlocal bypassと5 V bulk capacitanceを設けますが、部品値はValidation前の確定仕様としません。
+
+rendererはEspressif `led_strip`、RMT backend、ESP32-S3 DMAを使用し、bit-bangを採用しません。USB/TRS MIDI RX → parser → LED state → rendererを分離します。
+
+Note On/Offによるfretboard visualizationは初期機能として採用します。global brightnessなどのdevice settingを標準musical CCへ割り当てません。外部LED control protocolは未確定で、将来SysEx等の明示的なprotocolとして検討します。
+
+## 11. Rev.Bから撤回した回路
+
+- charging-only second USB-C
+- Li-ion cell/connector、NTC、BQ24074、charge configuration
 - battery protection dependency、PowerPath、BAT_VSENSE、charge/PG GPIO
-- TPS61023 battery-to-5V boost
+- TPS61023 battery-to-5 V boost
 - LM66100 Host VBUS source path
-- second USB-C、Host/DRP/role-switch circuitry
+- Host/DRP/role-switch circuitry
 
-TPS61023とLM66100にはRev.Bで別用途がないため削除します。Rev.A historical schematicは
-保持し、Rev.B PCBは新schematicから作り直します。
-
-## Sources used for electrical decisions
-
-- TI TUSB320 datasheet: https://www.ti.com/lit/ds/symlink/tusb320.pdf
-- Espressif ESP32-S3-MINI-1 datasheet: https://documentation.espressif.com/esp32-s3-mini-1_mini-1u_datasheet_en.html
-- Espressif led_strip: https://components.espressif.com/components/espressif/led_strip
-- MIDI 1.0 Electrical Specification Update: https://www.midi.org/wp-content/uploads/wpforo/default_attachments/1709416667-ca33-MIDI-10-Electrical-Specification-Update.pdf
-- TI SN74AHCT1G125 datasheet: https://www.ti.com/lit/ds/symlink/sn74ahct1g125.pdf
+TPS61023とLM66100にはRev.Bで別用途がないため採用しません。Rev.A manufacturing dataはhistoryとして保持し、Rev.B PCBはcurrent schematicから別工程で再設計します。

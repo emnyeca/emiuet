@@ -14,7 +14,9 @@ TUSB320 → shared I2C → usb_power → renderer current limiter / OLED status
 USBはbus-powered Composite Deviceです。self-powered VBUS GPIO、Host stack、role
 negotiation、battery/charger stateはありません。
 
-初期RGB commandはMIDI Note On/Off、CC7 global brightness、CC123 All Notes Offです。
+初期RGB inputはMIDI Note On/OffとCC123 All Notes Offです。global brightnessを含む
+device-level LED control protocolは未確定です。CC7などのstandard musical CCを
+device configurationへ転用せず、将来SysEx等の明示的なprotocolとして定義します。
 SysEx拡張点はtransportの外側に残していますが、protocolはまだ固定しません。
 
 ## Build
