@@ -40,6 +40,25 @@ config EMIUET_MIDI_TASK_USB_PRIORITY
     help
         Priority for the USB MIDI sender task.
 
+config EMIUET_USB_SELF_POWERED_VBUS_MONITOR
+    bool "Enable self-powered USB Device VBUS monitor"
+    default n
+    help
+        Enable esp_tinyusb's Device-side VBUS presence monitor. Rev.B must
+        enable this after the protected USB-C #2 VBUS divider/comparator is
+        physically connected. Rev.A leaves the proposed GPIO unconnected, so
+        this remains disabled for Rev.A builds.
+
+config EMIUET_USB_VBUS_MONITOR_GPIO
+    int "USB-C #2 VBUS monitor GPIO"
+    range 0 48
+    default 42
+    depends on EMIUET_USB_SELF_POWERED_VBUS_MONITOR
+    help
+        GPIO receiving the 3.3V-safe VBUS-valid signal. Never connect USB VBUS
+        directly to an ESP32-S3 GPIO. GPIO42 is reserved for the current Rev.B
+        Device-only proposal.
+
 config EMIUET_MIDI_TASK_BLE_PRIORITY
     int "BLE MIDI sender task priority"
     range 1 24

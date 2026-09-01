@@ -1,53 +1,57 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 | Linux |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | ----- |
+# Emiuet firmware
 
-# Hello World Example
+Emiuet firmware targets ESP32-S3 with ESP-IDF 5.3.4. Arduino is not used.
 
-Starts a FreeRTOS task to print "Hello World".
+The matrix scanner produces physical press/release events. `input_router`
+routes those events to either the existing MIDI path or the USB HID keyboard
+path according to the explicit input mode. USB-MIDI and HID are exposed
+together as one composite USB device, so switching MIDI/TYPE does not require
+USB disconnect or re-enumeration.
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+USB-C #2 is a fixed USB Device/UFP. The firmware has no Host stack, role
+negotiation, Host VBUS control, or runtime role state machine. Rev.B's
+self-powered VBUS monitor is enabled with
+`CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR` only after the protected monitor
+signal is physically present; it stays disabled on Rev.A.
 
-## How to use example
+For the Rev.B hardware profile, configure a separate build directory with both
+defaults files:
 
-Follow detailed instructions provided specifically for this example.
-
-Select the instructions depending on Espressif chip installed on your development board:
-
-- [ESP32 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/index.html)
-- [ESP32-S2 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
-
-
-## Example folder contents
-
-The project **hello_world** contains one source file in C language [hello_world_main.c](main/hello_world_main.c). The file is located in folder [main](main).
-
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt` files that provide set of directives and instructions describing the project's source files and targets (executable, library, or both).
-
-Below is short explanation of remaining files in the project folder.
-
-```
-├── CMakeLists.txt
-├── pytest_hello_world.py      Python script used for automated testing
-├── main
-│   ├── CMakeLists.txt
-│   └── hello_world_main.c
-└── README.md                  This is the file you are currently reading
+```text
+idf.py -B build-revb -D SDKCONFIG=build-revb/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rev-b.defaults" build
 ```
 
-For more information on structure and contents of ESP-IDF projects, please refer to Section [Build System](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html) of the ESP-IDF Programming Guide.
+## Build
 
-## Troubleshooting
+Use an ESP-IDF 5.3.4 shell:
 
-* Program upload failure
+```text
+idf.py build
+```
 
-    * Hardware connection is not correct: run `idf.py -p PORT monitor`, and reboot your board to see if there are any output logs.
-    * The baud rate for downloading is too high: lower your baud rate in the `menuconfig` menu, and try again.
+The managed component lock selects `esp_tinyusb` 2.0.1~1 and TinyUSB
+0.19.0~2. Both `CONFIG_TINYUSB_MIDI_COUNT=1` and
+`CONFIG_TINYUSB_HID_COUNT=1` are required.
 
-## Technical support and feedback
+## Input-mode structure
 
-Please use the following feedback channels:
+```text
+matrix_scan -> input_router -> MIDI output
+                           -> keyboard_input -> USB HID queue
+```
 
-* For technical queries, go to the [esp32.com](https://esp32.com/) forum
-* For a feature request or bug report, create a [GitHub issue](https://github.com/espressif/esp-idf/issues)
+Mode changes and USB detach clear all tracked MIDI notes, send MIDI All Notes
+Off/pitch-bend center, discard stale USB-MIDI queue contents, and clear the HID
+report queue. The pitch-bend slider continues to be sampled in TYPE mode but
+does not emit MIDI.
 
-We will get back to you as soon as possible.
+The editable keyboard mapping is centralized in `main/keyboard_keymap.c`.
+See [`../docs/keyboard-mode.md`](../docs/keyboard-mode.md) for the user-facing
+layout and USB-role findings.
+
+## Host-side logic tests
+
+The keymap and keyboard report-state tests are in `tests/`. They are small,
+libc-free C programs so they can be built with the bundled host clang even on
+a machine without a separate desktop C toolchain. The firmware build remains
+the integration check for the ESP-IDF/TinyUSB descriptor and task code.

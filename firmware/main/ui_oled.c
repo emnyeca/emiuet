@@ -27,6 +27,9 @@
 #include "ui_led_status.h"
 
 #include "controls.h"
+#include "input_router.h"
+#include "keyboard_input.h"
+#include "usb_hid_keyboard.h"
 
 #include "midi_mpe.h"
 #include "midi_out.h"
@@ -655,7 +658,7 @@ static void power_ui_update_blink_phase(power_ui_t *p, int64_t now_ms)
 
 static void draw_fixed_layout(u8g2_t *u8g2)
 {
-    // --- Yellow area (top): Battery + OCT: 0 ---
+    // --- Yellow area (top): Battery + active input mode ---
     draw_battery_icon(u8g2, &s_pwr_ui);
 
     // ---- Cell size presets ----
@@ -668,16 +671,21 @@ static void draw_fixed_layout(u8g2_t *u8g2)
     // Compact:
     // const grid_layout_t g = grid_make_layout(8, 6, 1, 1); // grid_h=41
 
-    // --- Yellow area (top): OCT: 0 ---
-    u8g2_SetFont(u8g2, u8g2_font_6x12_tf);
+    u8g2_SetFont(u8g2, u8g2_font_5x7_tf);
     u8g2_SetFontPosBaseline(u8g2);
 
-    char oct_text[12];
-    (void)snprintf(oct_text, sizeof(oct_text), "OCT: %d", (int)controls_get_octave());
-    int tw = u8g2_GetStrWidth(u8g2, oct_text);
+    char mode_text[20];
+    if (input_router_get_mode() == INPUT_MODE_KEYBOARD) {
+        (void)snprintf(mode_text, sizeof(mode_text), "TYPE L%u C:%s",
+                       (unsigned)keyboard_input_get_layer(),
+                       usb_hid_keyboard_caps_lock_on() ? "ON" : "OFF");
+    } else {
+        (void)snprintf(mode_text, sizeof(mode_text), "MIDI OCT:%d", (int)controls_get_octave());
+    }
+    int tw = u8g2_GetStrWidth(u8g2, mode_text);
     int tx = (OLED_W - tw) / 2;
-    int ty = 12; // baseline within 0..15
-    u8g2_DrawStr(u8g2, tx, ty, oct_text);
+    int ty = 11; // baseline within 0..15
+    u8g2_DrawStr(u8g2, tx, ty, mode_text);
 
     /* --- Yellow area: status icons (right side) --- */
     const int stringwise_x = OLED_W - STATUS_ICON_MARGIN_RIGHT - STRINGWISE_ICON_W;

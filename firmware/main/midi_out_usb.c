@@ -1,8 +1,11 @@
 #include "midi_out.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "esp_log.h"
+#include "input_router.h"
+#include "usb_hid_keyboard.h"
 
 /* Defensive defaults for newly introduced Kconfig symbols.
  * This prevents build failures when the build directory has a stale sdkconfig.h.
@@ -24,7 +27,7 @@
 static const char *TAG = "midi_out_usb";
 
 /*
- * USB-MIDI backend
+ * Fixed-role USB Device backend
  *
  * This is intentionally isolated behind a config gate so the project
  * still builds even when TinyUSB is not enabled in sdkconfig.
@@ -54,7 +57,7 @@ static inline bool tud_midi_ready(void)
 #endif
 
 #ifndef EMUIET_USB_MIDI_BCD
-#define EMUIET_USB_MIDI_BCD 0x0100
+#define EMUIET_USB_MIDI_BCD 0x0101
 #endif
 
 /* USB descriptors */
@@ -85,32 +88,49 @@ static const tusb_desc_device_t s_desc_device = {
 static const char *s_string_desc[] = {
     (const char[]){0x09, 0x04}, /* 0: English (0x0409) */
     "Emnyeca",
-    "Emiuet USB-MIDI",
+    "Emiuet MIDI + Keyboard",
     "0001",
+    "Emiuet Keyboard",
 };
 
 /*
  * Configuration descriptor:
  * - One configuration
- * - One MIDI interface (TinyUSB MIDI class)
+ * - MIDI 1.0 function (Audio Control + MIDI Streaming interfaces)
+ * - HID boot keyboard interface
  */
 #define EMUIET_USB_ITF_NUM_MIDI 0
-#define EMUIET_USB_ITF_NUM_TOTAL 1
+#define EMUIET_USB_ITF_NUM_HID  2
+#define EMUIET_USB_ITF_NUM_TOTAL 3
 
 #define EMUIET_USB_EP_MIDI_OUT 0x01
 #define EMUIET_USB_EP_MIDI_IN  0x81
+#define EMUIET_USB_EP_HID_IN   0x82
 
 #ifndef EMUIET_USB_MIDI_EP_SIZE
 #define EMUIET_USB_MIDI_EP_SIZE 64
 #endif
 
+#ifndef EMUIET_USB_HID_EP_SIZE
+#define EMUIET_USB_HID_EP_SIZE 8
+#endif
+
+static const uint8_t s_hid_report_descriptor[] = {
+    TUD_HID_REPORT_DESC_KEYBOARD()
+};
+
 static const uint8_t s_desc_configuration[] = {
-    TUD_CONFIG_DESCRIPTOR(1, EMUIET_USB_ITF_NUM_TOTAL, 0, (TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN), 0x00, 100),
+    TUD_CONFIG_DESCRIPTOR(1, EMUIET_USB_ITF_NUM_TOTAL, 0,
+                          (TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN + TUD_HID_DESC_LEN),
+                          0x00, 100),
     /* Note: TUD_MIDI_DESCRIPTOR signature depends on TinyUSB version. In esp-idf v5.3.4's tinyusb, it is:
      *   TUD_MIDI_DESCRIPTOR(itfnum, stridx, epout, epin, epsize)
      * We don't provide a dedicated interface string, so stridx=0.
      */
-    TUD_MIDI_DESCRIPTOR(EMUIET_USB_ITF_NUM_MIDI, 0, EMUIET_USB_EP_MIDI_OUT, EMUIET_USB_EP_MIDI_IN, EMUIET_USB_MIDI_EP_SIZE)
+    TUD_MIDI_DESCRIPTOR(EMUIET_USB_ITF_NUM_MIDI, 0, EMUIET_USB_EP_MIDI_OUT, EMUIET_USB_EP_MIDI_IN, EMUIET_USB_MIDI_EP_SIZE),
+    TUD_HID_DESCRIPTOR(EMUIET_USB_ITF_NUM_HID, 4, HID_ITF_PROTOCOL_KEYBOARD,
+                       sizeof(s_hid_report_descriptor), EMUIET_USB_EP_HID_IN,
+                       EMUIET_USB_HID_EP_SIZE, 10)
 };
 
 static bool s_inited = false;
@@ -138,6 +158,44 @@ static uint32_t s_usb_coalesce_pb = 0;
 static uint32_t s_usb_coalesce_cc1 = 0;
 static uint32_t s_usb_q_hwm = 0;
 static TickType_t s_usb_last_stats_log_tick = 0;
+
+uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
+{
+    (void)instance;
+    return s_hid_report_descriptor;
+}
+
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
+                               hid_report_type_t report_type, uint8_t *buffer,
+                               uint16_t reqlen)
+{
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)reqlen;
+    return 0;
+}
+
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
+                           hid_report_type_t report_type,
+                           uint8_t const *buffer, uint16_t bufsize)
+{
+    (void)instance;
+    (void)report_id;
+    if (report_type == HID_REPORT_TYPE_OUTPUT && buffer && bufsize > 0) {
+        usb_hid_keyboard_set_led_report(buffer[0]);
+    }
+}
+
+static void usb_clear_pending_midi(void)
+{
+    if (s_usb_q) (void)xQueueReset(s_usb_q);
+    portENTER_CRITICAL(&s_usb_coalesce_mux);
+    memset(s_usb_pb_pending, 0, sizeof(s_usb_pb_pending));
+    memset(s_usb_cc1_pending, 0, sizeof(s_usb_cc1_pending));
+    portEXIT_CRITICAL(&s_usb_coalesce_mux);
+}
 
 static inline void usb_maybe_update_hwm(void)
 {
@@ -293,6 +351,9 @@ static void midi_out_usb_event_cb(tinyusb_event_t *event, void *arg)
             break;
         case TINYUSB_EVENT_DETACHED:
             ESP_LOGI(TAG, "tud_umount_cb(): tud_mounted()=%d tud_midi_ready()=%d", (int)tud_mounted(), (int)tud_midi_ready());
+            usb_clear_pending_midi();
+            usb_hid_keyboard_disconnected();
+            input_router_usb_disconnected();
             break;
         default:
             break;
@@ -333,14 +394,21 @@ bool midi_out_usb_init(void)
 
     /* TODO (prototype bring-up):
      * On some ESP32-S3 DevKits, the USB connector used for flashing/monitoring is USB-Serial/JTAG,
-      * not the native USB OTG D+/D- (PIN_USB_D_PLUS/PIN_USB_D_MINUS). In that case Windows won't enumerate this
-     * TinyUSB MIDI device and tud_mount_cb()/tud_mounted() won't fire.
-     * Ensure the cable is on the native OTG port (or temporarily disable USB-Serial/JTAG) when
-     * validating USB-MIDI enumeration.
+     * not the native USB D+/D- (PIN_USB_D_PLUS/PIN_USB_D_MINUS). In that case Windows won't enumerate this
+     * TinyUSB composite Device and tud_mount_cb()/tud_mounted() won't fire.
+     * Ensure the cable is on the native USB Device port when validating enumeration.
      */
 
     /* Default config provides sane task/PHY defaults; we override descriptors for MIDI. */
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG();
+#if CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR
+    cfg.phy.self_powered = true;
+    cfg.phy.vbus_monitor_io = CONFIG_EMIUET_USB_VBUS_MONITOR_GPIO;
+#else
+    ESP_LOGW(TAG,
+             "self-powered VBUS monitor disabled (Rev.A compatibility); "
+             "Rev.B hardware/config must enable it");
+#endif
     cfg.descriptor.device = &s_desc_device;
     cfg.descriptor.string = s_string_desc;
     cfg.descriptor.full_speed_config = s_desc_configuration;
@@ -377,7 +445,10 @@ bool midi_out_usb_init(void)
     }
 
     s_inited = true;
-    ESP_LOGI(TAG, "USB-MIDI backend initialized");
+    if (!usb_hid_keyboard_init()) {
+        ESP_LOGE(TAG, "failed to initialize USB HID keyboard sender");
+    }
+    ESP_LOGI(TAG, "USB MIDI + HID composite backend initialized");
 
     if (s_usb_q == NULL) {
         s_usb_q = xQueueCreate(CONFIG_EMIUET_MIDI_USB_QUEUE_LEN, sizeof(midi_tx_item_t));
@@ -408,6 +479,9 @@ bool midi_out_usb_send_bytes(const uint8_t *bytes, size_t len)
 {
     if (!s_inited) return false;
     if (!bytes || len == 0) return false;
+
+    /* Never replay notes performed while the USB host was absent. */
+    if (!tud_mounted()) return false;
 
     /* Coalesce continuous controllers to prevent queue saturation. */
     if (is_pitchbend_3(bytes, len)) {

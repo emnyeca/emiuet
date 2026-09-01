@@ -1,0 +1,5 @@
+# Rev.B fixed USB Device / UFP hardware profile.
+# Apply after sdkconfig.defaults once the protected USB-C #2 VBUS monitor is
+# connected to GPIO42 on the Rev.B PCB.
+CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR=y
+CONFIG_EMIUET_USB_VBUS_MONITOR_GPIO=42

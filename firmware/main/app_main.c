@@ -30,7 +30,7 @@ static void board_late_init_task(void *arg)
     /* Stage 2: enable column inputs (now safe) */
     board_pins_enable_matrix_columns();
 
-    /* Start matrix -> MIDI bridge with initial discard cycles to avoid
+    /* Start matrix -> mode router with initial discard cycles to avoid
      * reacting to boot-time strapping states or keys held during boot.
      */
     matrix_midi_bridge_start(MATRIX_INITIAL_DISCARD_CYCLES);
