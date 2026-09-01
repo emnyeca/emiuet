@@ -5,7 +5,9 @@ cmake_minimum_required(VERSION 3.16)
 # Apply project defaults when generating sdkconfig.
 # (Without this, a developer's existing build directory may keep an older
 # sdkconfig where TinyUSB MIDI is disabled.)
-set(SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+if(NOT DEFINED SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(emiuet_firmware)

@@ -8,6 +8,19 @@ path according to the explicit input mode. USB-MIDI and HID are exposed
 together as one composite USB device, so switching MIDI/TYPE does not require
 USB disconnect or re-enumeration.
 
+USB-C #2 is a fixed USB Device/UFP. The firmware has no Host stack, role
+negotiation, Host VBUS control, or runtime role state machine. Rev.B's
+self-powered VBUS monitor is enabled with
+`CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR` only after the protected monitor
+signal is physically present; it stays disabled on Rev.A.
+
+For the Rev.B hardware profile, configure a separate build directory with both
+defaults files:
+
+```text
+idf.py -B build-revb -D SDKCONFIG=build-revb/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rev-b.defaults" build
+```
+
 ## Build
 
 Use an ESP-IDF 5.3.4 shell:

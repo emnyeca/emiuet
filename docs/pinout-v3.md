@@ -17,8 +17,9 @@ ESP32-S3-MINI-1 の安定動作に必須の固定機能ピンです。
 | USB D-     | GPIO19 | Pin 23 | USB 差動ペア必須                 |
 | USB D+     | GPIO20 | Pin 24 | USB 差動ペア必須                 |
 | MIDI OUT   | GPIO43 | Pin 39 | TRS Type-A / U0TXD         |
-| I2C SDA    | GPIO18 | Pin 22 | OLED / TUSB320 共有（3.3V PU） |
-| I2C SCL    | GPIO16 | Pin 20 | OLED / TUSB320 共有          |
+| I2C SDA    | GPIO18 | Pin 22 | OLED（Rev.AではTUSB320とも共有） |
+| I2C SCL    | GPIO16 | Pin 20 | OLED（Rev.AではTUSB320とも共有） |
+| USB2_VBUS_SENSE | GPIO42 | Pin 38 | Rev.B予約：自己給電USB DeviceのVBUS検出。Rev.Aでは未接続 |
 | BAT_VSENSE | GPIO17 | Pin 21 | バッテリー電圧監視（ADC2_CH6）        |
 | EN         | -      | Pin 45 | 10kΩ + 1μF RC 遅延必須         |
 | CHG        | GPIO48 | Pin 30 | 充電中ステータス（10kΩ 外部 PU）       |
@@ -150,6 +151,13 @@ ESP32-S3-MINI-1 の安定動作に必須の固定機能ピンです。
 * 本資料は **Emiuet v3 系の最終ピンアサイン定義**である
 * ファームウェア実装時は、GPIO 定義・初期化・安全対策を必ず本資料に準拠すること
 * 今後 PCB Revision が変わる場合は、必ず本ファイルを更新し、バージョンを明示すること
+
+### Rev.B USB差分
+
+Rev.BではUSB-C #2を固定Device/UFPとし、TUSB320、Host VBUS出力、role
+switchingを採用しない。GPIO42は、保護済みUSB-C #2 VBUSを分圧器または
+コンパレータ経由で監視する候補として予約する。分圧比、保護、閾値は
+Rev.B回路レビューと実測を通して確定し、5VをGPIOへ直結してはならない。
 
 ---
 

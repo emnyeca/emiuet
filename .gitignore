@@ -9,7 +9,7 @@ fp-info-cache
 *.rpt
 
 # ESP-IDF build outputs
-firmware/build/
+firmware/build*/
 firmware/sdkconfig
 firmware/sdkconfig.old
 *.bin
