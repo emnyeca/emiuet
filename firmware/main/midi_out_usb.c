@@ -7,6 +7,7 @@
 #include "input_router.h"
 #include "midi_input.h"
 #include "usb_hid_keyboard.h"
+#include "usb_power.h"
 
 /* Defensive defaults for newly introduced Kconfig symbols.
  * This prevents build failures when the build directory has a stale sdkconfig.h.
@@ -123,7 +124,7 @@ static const uint8_t s_hid_report_descriptor[] = {
 static const uint8_t s_desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, EMUIET_USB_ITF_NUM_TOTAL, 0,
                           (TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN + TUD_HID_DESC_LEN),
-                          0x00, 250),
+                          0x00, 500),
     /* Note: TUD_MIDI_DESCRIPTOR signature depends on TinyUSB version. In esp-idf v5.3.4's tinyusb, it is:
      *   TUD_MIDI_DESCRIPTOR(itfnum, stridx, epout, epin, epsize)
      * We don't provide a dedicated interface string, so stridx=0.
@@ -255,7 +256,18 @@ static bool usb_send_lowlevel(const uint8_t *bytes, size_t len)
     return written == len;
 }
 
-static void usb_flush_coalesced_once(void)
+/* Producers publish (enqueue or coalesce) before notifying. The sender drains
+ * everything before waiting again, so a notification given during a drain stays
+ * pending and the next wait returns at once: no wakeup is lost.
+ */
+static inline void usb_tx_wake(void)
+{
+    TaskHandle_t task = s_usb_tx_task_handle;
+    if (task) xTaskNotifyGive(task);
+}
+
+/* Returns false when TinyUSB could not accept a value; it stays pending. */
+static bool usb_flush_coalesced_once(void)
 {
     for (int ch = 0; ch < 16; ++ch) {
         bool pb = false;
@@ -276,12 +288,15 @@ static void usb_flush_coalesced_once(void)
             if (!usb_send_lowlevel(b, sizeof(b))) {
                 /* Keep pending on failure to avoid losing latest value. */
                 portENTER_CRITICAL(&s_usb_coalesce_mux);
-                s_usb_pb_pending[ch] = true;
-                s_usb_pb_lsb[ch] = pb_lsb;
-                s_usb_pb_msb[ch] = pb_msb;
+                /* A producer may have published a newer value during I/O. */
+                if (!s_usb_pb_pending[ch]) {
+                    s_usb_pb_pending[ch] = true;
+                    s_usb_pb_lsb[ch] = pb_lsb;
+                    s_usb_pb_msb[ch] = pb_msb;
+                }
                 portEXIT_CRITICAL(&s_usb_coalesce_mux);
                 s_usb_drop_write++;
-                return;
+                return false;
             }
         }
 
@@ -300,56 +315,66 @@ static void usb_flush_coalesced_once(void)
             uint8_t b[3] = {(uint8_t)(0xB0u | (uint8_t)ch), 1u, (uint8_t)(cc1_v & 0x7Fu)};
             if (!usb_send_lowlevel(b, sizeof(b))) {
                 portENTER_CRITICAL(&s_usb_coalesce_mux);
-                s_usb_cc1_pending[ch] = true;
-                s_usb_cc1_val[ch] = cc1_v;
+                if (!s_usb_cc1_pending[ch]) {
+                    s_usb_cc1_pending[ch] = true;
+                    s_usb_cc1_val[ch] = cc1_v;
+                }
                 portEXIT_CRITICAL(&s_usb_coalesce_mux);
                 s_usb_drop_write++;
-                return;
+                return false;
             }
         }
     }
+    return true;
 }
+
+/* Sends queued discrete events in order, interleaving the coalesced values every
+ * USB_FLUSH_EVERY_N_EVENTS and after the queue empties. Returns false if TinyUSB
+ * refused data (TX FIFO full or not mounted); that data stays pending.
+ * A refused 1-3 byte message is not partially written: TinyUSB checks for a free
+ * 4-byte packet before consuming any byte, and this task is the only writer.
+ */
+#define USB_FLUSH_EVERY_N_EVENTS 16
+
+static bool usb_tx_drain(int *sent_since_flush)
+{
+    midi_tx_item_t item = {0};
+    while (s_usb_q && xQueuePeek(s_usb_q, &item, 0) == pdTRUE) {
+        /* Preserve the interleave deadline across FIFO-full retries. */
+        if (*sent_since_flush >= USB_FLUSH_EVERY_N_EVENTS) {
+            if (!usb_flush_coalesced_once()) return false;
+            *sent_since_flush = 0;
+        }
+        usb_maybe_update_hwm();
+        if (!usb_send_lowlevel(item.bytes, item.len)) {
+            s_usb_drop_write++;
+            return false;
+        }
+        (void)xQueueReceive(s_usb_q, &item, 0);
+        ++*sent_since_flush;
+    }
+    if (!usb_flush_coalesced_once()) return false;
+    *sent_since_flush = 0;
+    return true;
+}
+
+/* On refusal, actually block for a tick so the lower-priority TinyUSB task can
+ * free TX space. Producer notifications must not bypass this scheduling break.
+ */
+#define USB_TX_RETRY_TICKS (pdMS_TO_TICKS(1) ? pdMS_TO_TICKS(1) : (TickType_t)1)
 
 static void midi_out_usb_tx_task(void *arg)
 {
     (void)arg;
-    const int FLUSH_EVERY_N_EVENTS = 16;
     int sent_since_flush = 0;
-
-    while (1) {
-        if (!tud_mounted()) {
-            /* Not mounted: keep queued discrete events and latest coalesced values. */
-            vTaskDelay(pdMS_TO_TICKS(10));
-            continue;
-        }
-
-        /* Discrete events: peek+send+pop so we don't drop on transient failure. */
-        midi_tx_item_t item = {0};
-        if (s_usb_q && xQueuePeek(s_usb_q, &item, pdMS_TO_TICKS(1)) == pdTRUE) {
-            usb_maybe_update_hwm();
-            if (usb_send_lowlevel(item.bytes, item.len)) {
-                (void)xQueueReceive(s_usb_q, &item, 0);
-                sent_since_flush++;
-            } else {
-                s_usb_drop_write++;
-                usb_maybe_log_stats();
-                vTaskDelay(pdMS_TO_TICKS(1));
-                continue;
-            }
-
-            if (sent_since_flush >= FLUSH_EVERY_N_EVENTS) {
-                sent_since_flush = 0;
-                usb_flush_coalesced_once();
-            }
-
-            usb_maybe_log_stats();
-            continue;
-        }
-
-        /* Idle path */
-        usb_flush_coalesced_once();
+    for (;;) {
+        const bool drained = usb_tx_drain(&sent_since_flush);
         usb_maybe_log_stats();
-        taskYIELD();
+        if (drained) {
+            (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        } else {
+            vTaskDelay(USB_TX_RETRY_TICKS);
+        }
     }
 }
 
@@ -360,7 +385,10 @@ static void midi_out_usb_event_cb(tinyusb_event_t *event, void *arg)
 
     switch (event->id) {
         case TINYUSB_EVENT_ATTACHED:
+            /* Only the state monitor grants Default-current RGB power, so a
+             * failed monitor task cannot leave an unmonitored grant active. */
             ESP_LOGI(TAG, "tud_mount_cb(): tud_mounted()=%d tud_midi_ready()=%d", (int)tud_mounted(), (int)tud_midi_ready());
+            usb_tx_wake();
             break;
         case TINYUSB_EVENT_DETACHED:
             ESP_LOGI(TAG, "tud_umount_cb(): tud_mounted()=%d tud_midi_ready()=%d", (int)tud_mounted(), (int)tud_midi_ready());
@@ -382,11 +410,14 @@ static void midi_out_usb_state_task(void *arg)
 
     while (1) {
         const bool mounted = tud_mounted();
+        usb_power_set_bus_state(mounted, tud_suspended());
         const bool ready = mounted && tud_midi_ready();
 
         if (mounted != last_mounted) {
             ESP_LOGI(TAG, "tud_mounted() -> %d", (int)mounted);
             last_mounted = mounted;
+            /* Also covers a missed ATTACHED event; the sender then retries pending data. */
+            usb_tx_wake();
         }
 
         if (ready != last_ready) {
@@ -412,8 +443,8 @@ bool midi_out_usb_init(void)
      * Ensure the cable is on the native USB Device port when validating enumeration.
      */
 
-    /* Rev.B is bus-powered from this same connector. TUSB320 independently
-     * observes CC attach/orientation/current; TinyUSB uses its normal bus-powered PHY.
+    /* Rev.B is bus-powered from this same connector. The CC comparator
+     * (usb_cc_detect) observes the Type-C current advertisement independently.
      */
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG();
     cfg.descriptor.device = &s_desc_device;
@@ -500,6 +531,7 @@ bool midi_out_usb_send_bytes(const uint8_t *bytes, size_t len)
         s_usb_pb_lsb[ch] = (uint8_t)(bytes[1] & 0x7Fu);
         s_usb_pb_msb[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_usb_coalesce_mux);
+        usb_tx_wake();
         return true;
     }
 
@@ -510,6 +542,7 @@ bool midi_out_usb_send_bytes(const uint8_t *bytes, size_t len)
         s_usb_cc1_pending[ch] = true;
         s_usb_cc1_val[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_usb_coalesce_mux);
+        usb_tx_wake();
         return true;
     }
 
@@ -525,11 +558,12 @@ bool midi_out_usb_send_bytes(const uint8_t *bytes, size_t len)
     if (xQueueSendToBack(s_usb_q, &item, 0) != pdTRUE) {
         s_usb_drop_queue++;
         usb_maybe_update_hwm();
-        usb_maybe_log_stats();
+        usb_tx_wake();
         return false;
     }
 
     usb_maybe_update_hwm();
+    usb_tx_wake();
     return true;
 }
 

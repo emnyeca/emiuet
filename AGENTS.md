@@ -5,6 +5,7 @@
 * `../eub/ai-governance/AI-WORKING-CHARTER.md`
 * `../eub/ai-governance/AI-WORKING-POLICY.md`
 * このリポジトリの `README.md` と `docs/decisions.md`
+* Rev.B開発を進める場合は `docs/rev-b-roadmap.md` の現在地と再開手順
 
 相対パスの `eub` が利用できない環境では、`https://github.com/emnyeca/eub/tree/main/ai-governance` の正本を確認する。確認できないまま、製品方針や正本構造を変更してはならない。
 

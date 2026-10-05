@@ -11,9 +11,9 @@ GPIO26は内蔵PSRAM用として使いません。
 | USB D- / D+ | 19 / 20 | 23 / 24 | native USB固定 |
 | Matrix col 8 | 21 | 25 | USB pair直後の残り1本 |
 | Matrix cols 9–12 | 33–36 | 28 / 29 / 31 / 32 | 4本連続。使用module variantでavailabilityを再確認 |
-| TUSB320 INT_N | 37 | 33 | I2C status change、外部pull-up |
+| USB_CC_1A5_N | 37 | 33 | CC comparatorのopen-drain出力（Low = Rp ≥ 1.5 A）、外部pull-up |
 | SK6812 DATA | 38 | 34 | RMT TX → AHCT buffer |
-| I2C SDA / SCL | 39 / 40 | 35 / 36 | OLEDとTUSB320の共有bus |
+| I2C SDA / SCL | 39 / 40 | 35 / 36 | OLED (0x3C) |
 | SW CENTER / RIGHT | 41 / 42 | 37 / 38 | active-low button inputs |
 | TRS MIDI OUT / IN | 43 / 44 | 39 / 40 | UART1 TX/RXをGPIO matrixで割当 |
 | SW LEFT | 47 | 27 | active-low button input |

@@ -3,20 +3,23 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* The CC detector reports only "below" or "at/above" the Type-C 1.5 A threshold.
+ * 3 A advertisements are intentionally treated like 1.5 A (Rev.B ceiling).
+ */
 typedef enum {
-    USB_CURRENT_DEFAULT = 0,
-    USB_CURRENT_1P5A,
-    USB_CURRENT_3A,
-    USB_CURRENT_UNKNOWN,
+    USB_CURRENT_UNKNOWN = 0,
+    USB_CURRENT_DEFAULT,
+    USB_CURRENT_1P5A_OR_MORE,
 } usb_current_mode_t;
 
 typedef struct {
-    bool attached_as_sink;
-    bool orientation_cc2;
     usb_current_mode_t advertised_current;
     uint16_t rgb_budget_ma;
 } usb_power_status_t;
 
-void usb_power_set_status(bool attached_as_sink, bool orientation_cc2,
-                          usb_current_mode_t current);
+void usb_power_set_advertised_current(usb_current_mode_t current);
+/* Default-current RGB is allowed only while USB is configured and active.
+ * This limits RGB output, not total board current or LED idle consumption.
+ */
+void usb_power_set_bus_state(bool configured, bool suspended);
 usb_power_status_t usb_power_get_status(void);

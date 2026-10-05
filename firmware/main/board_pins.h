@@ -1,6 +1,6 @@
 #pragma once
 
-/* Emiuet Rev.B GPIO source of truth.
+/* Implementation of the Rev.B GPIO allocation in docs/pinout-v3.md.
  * Keep GPIO0/3/45/46 free of normal loads because they are strapping pins.
  * GPIO19/20 are dedicated to native USB. GPIO26 is unavailable on N4R2.
  */
@@ -14,7 +14,7 @@
 
 #define PIN_I2C_SDA           GPIO_NUM_39
 #define PIN_I2C_SCL           GPIO_NUM_40
-#define PIN_TUSB320_INT_N     GPIO_NUM_37
+#define PIN_USB_CC_1A5_N      GPIO_NUM_37
 
 #define PIN_MIDI_OUT_TX       GPIO_NUM_43
 #define PIN_MIDI_IN_RX        GPIO_NUM_44

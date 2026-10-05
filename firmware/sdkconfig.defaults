@@ -9,6 +9,10 @@ CONFIG_TINYUSB_HID_COUNT=1
 # bring-up uses real matrix scan behavior.
 # CONFIG_MATRIX_SIM_ENABLED_DEFAULT is not set
 
+# 1 ms tick: the 5 ms matrix scan, 1 ms USB/HID retries and u8g2 delays are
+# shorter than the 10 ms tick of the ESP-IDF default (100 Hz) and were rounded.
+CONFIG_FREERTOS_HZ=1000
+
 # Target hardware (EUB-04): ESP32-S3-MINI-1-N4R2 has 4MB flash.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"

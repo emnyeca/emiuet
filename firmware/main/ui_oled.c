@@ -331,9 +331,10 @@ static void draw_usb_power_badge(u8g2_t *u8g2)
 {
     const usb_power_status_t status = usb_power_get_status();
     const char *label = "USB?";
-    if (status.attached_as_sink) {
-        label = (status.advertised_current == USB_CURRENT_1P5A ||
-                 status.advertised_current == USB_CURRENT_3A) ? "USB1.5" : "USB-D";
+    if (status.advertised_current == USB_CURRENT_1P5A_OR_MORE) {
+        label = "USB1.5";
+    } else if (status.advertised_current == USB_CURRENT_DEFAULT) {
+        label = "USB-D";
     }
     u8g2_SetFont(u8g2, u8g2_font_5x7_tf);
     u8g2_DrawStr(u8g2, 1, 11, label);

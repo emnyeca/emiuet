@@ -25,21 +25,31 @@ typedef struct {
 static QueueHandle_t s_report_queue = NULL;
 static TaskHandle_t s_sender_task = NULL;
 
+/* Every wait must be at least one tick: a 0-tick wait would spin and starve
+ * lower-priority core 0 tasks while USB is unmounted or HID is busy.
+ */
+#define HID_RETRY_TICKS    (pdMS_TO_TICKS(1) ? pdMS_TO_TICKS(1) : (TickType_t)1)
+#define HID_UNMOUNTED_WAIT pdMS_TO_TICKS(10)
+
 static void hid_sender_task(void *arg)
 {
     (void)arg;
     while (1) {
         keyboard_report_t report = {0};
-        if (!tud_mounted() || !tud_hid_ready() || !s_report_queue ||
-            xQueuePeek(s_report_queue, &report, pdMS_TO_TICKS(1)) != pdTRUE) {
-            vTaskDelay(pdMS_TO_TICKS(1));
+        if (!tud_mounted() || !s_report_queue) {
+            vTaskDelay(HID_UNMOUNTED_WAIT);
+            continue;
+        }
+        if (!tud_hid_ready() ||
+            xQueuePeek(s_report_queue, &report, HID_RETRY_TICKS) != pdTRUE) {
+            vTaskDelay(HID_RETRY_TICKS);
             continue;
         }
 
         if (tud_hid_keyboard_report(0, report.modifiers, report.keycodes)) {
             (void)xQueueReceive(s_report_queue, &report, 0);
         } else {
-            vTaskDelay(pdMS_TO_TICKS(1));
+            vTaskDelay(HID_RETRY_TICKS);
         }
     }
 }

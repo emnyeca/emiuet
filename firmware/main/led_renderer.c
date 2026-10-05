@@ -37,7 +37,8 @@ static void render_task(void *arg)
             }
             uint32_t estimated_ma = channel_sum * brightness * CONSERVATIVE_FULL_WHITE_MA;
             estimated_ma /= (255u * 255u * 3u);
-            uint16_t budget_scale = 255;
+            /* A revoked grant must also clear colors whose estimate rounds to 0 mA. */
+            uint16_t budget_scale = budget == 0 ? 0 : 255;
             if (estimated_ma > budget && estimated_ma != 0) {
                 budget_scale = (uint16_t)((uint32_t)budget * 255u / estimated_ma);
             }

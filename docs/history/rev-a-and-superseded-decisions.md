@@ -20,11 +20,11 @@ internal batteryを維持したままdata USB VBUSをpresence senseだけにす�
 
 Rev.BはUSB VBUSで本体そのものを給電するため、このself-powered monitor案を撤回しました。
 
-## TUSB320削除案
+## TUSB320によるCC/current検出
 
-fixed UFPならCC1/CC2へRdを直接配置できるため、TUSB320を削除する案がありました。78 RGB LEDs追加後、Source current advertisementをfirmwareで取得する価値が高くなったため撤回しました。
+旧Rev.BではTUSB320（PORT=L、ADDR=L、I2C）をUFP attach/orientation/current detectorとして残していました。それ以前の「Rdだけに置き換えてTUSB320を削除する案」は、78 RGB LEDs追加後にSource current advertisementを取得する必要が生じたため一度撤回されていました。
 
-現行Rev.BではTUSB320をUFP attach/orientation/current detectorとして残します。Host、DRP、role switchingには使用しません。
+TUSB320はCURRENT_MODE_DETECTをattach時に一度だけ更新し、接続中のRp変化はperiodic I2C soft reset（最大95 ms）と再debounce（133 ms）を経ないと反映できません（TI Rev.F §6.7、§7.3.1.2）。Type-C sinkのtSinkAdj（最大60 ms）を満たせず、reset中はRGBが周期消灯するため、2026-10-05にRd＋comparatorによる常時検出へ置換しました。TUSB320LAIもdatasheet上は同じ一回検出のため代替にしていません。
 
 ## 記録を残す理由と終了条件
 

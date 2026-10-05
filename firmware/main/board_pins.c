@@ -46,7 +46,7 @@ void board_pins_init_early(void)
     configure_input(PIN_SW_CENTER, GPIO_PULLUP_ENABLE);
     configure_input(PIN_SW_RIGHT, GPIO_PULLUP_ENABLE);
     configure_input(PIN_SW_LEFT, GPIO_PULLUP_ENABLE);
-    configure_input(PIN_TUSB320_INT_N, GPIO_PULLUP_DISABLE);
+    configure_input(PIN_USB_CC_1A5_N, GPIO_PULLUP_DISABLE);
 }
 
 void board_pins_init_matrix_prepare(void)

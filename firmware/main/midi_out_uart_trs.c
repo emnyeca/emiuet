@@ -164,45 +164,46 @@ static void trs_flush_coalesced_once(void)
     }
 }
 
+/* Producers publish (enqueue or coalesce) before notifying. The sender drains
+ * everything before waiting again, so a notification given during a drain stays
+ * pending and the next wait returns at once: no wakeup is lost.
+ */
+static inline void trs_tx_wake(void)
+{
+    TaskHandle_t task = s_task;
+    if (task) xTaskNotifyGive(task);
+}
+
 static void trs_sender_task(void *arg)
 {
     (void)arg;
 
     /* We intentionally do not call uart_wait_tx_done() per message.
      * UART driver TX buffer + this dedicated task provides stable latency.
+     * uart_write_bytes() waits for ring-buffer space, so there is no retry state.
      */
     const int FLUSH_EVERY_N_EVENTS = 8;
-    int sent_since_flush = 0;
 
-    while (1) {
+    for (;;) {
+        int sent_since_flush = 0;
         midi_tx_item_t item = {0};
 
-        /* Wait for discrete events; if none arrive, periodically flush coalesced values. */
-        if (s_q && xQueueReceive(s_q, &item, pdMS_TO_TICKS(1)) == pdTRUE) {
+        /* Single sender task owns the UART; no mutex required. */
+        while (s_q && xQueueReceive(s_q, &item, 0) == pdTRUE) {
             maybe_update_hwm();
-
-            /* Single sender task owns the UART; no mutex required. */
-            bool ok = trs_uart_write_bytes(item.bytes, item.len);
-
-            if (!ok) {
+            if (!trs_uart_write_bytes(item.bytes, item.len)) {
                 s_drop_write++;
             }
-
-            sent_since_flush++;
-            if (sent_since_flush >= FLUSH_EVERY_N_EVENTS) {
+            if (++sent_since_flush >= FLUSH_EVERY_N_EVENTS) {
                 sent_since_flush = 0;
                 trs_flush_coalesced_once();
             }
-
-            maybe_log_stats();
-            continue;
         }
 
-        /* Idle path: flush continuous updates promptly. */
+        /* Queue empty: flush continuous updates promptly, then sleep until notified. */
         trs_flush_coalesced_once();
         maybe_log_stats();
-
-        taskYIELD();
+        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 }
 
@@ -326,6 +327,7 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
         s_pb_lsb[ch] = (uint8_t)(bytes[1] & 0x7Fu);
         s_pb_msb[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_coalesce_mux);
+        trs_tx_wake();
         return true;
     }
 
@@ -336,6 +338,7 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
         s_cc1_pending[ch] = true;
         s_cc1_val[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_coalesce_mux);
+        trs_tx_wake();
         return true;
     }
 
@@ -347,10 +350,11 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
     if (xQueueSendToBack(s_q, &item, 0) != pdTRUE) {
         s_drop_queue++;
         maybe_update_hwm();
-        maybe_log_stats();
+        trs_tx_wake();
         return false;
     }
 
     maybe_update_hwm();
+    trs_tx_wake();
     return true;
 }

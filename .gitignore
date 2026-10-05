@@ -1,4 +1,6 @@
 # KiCad files
+/build/
+__pycache__/
 *.kicad_prl
 *~
 *.tmp

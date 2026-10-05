@@ -71,5 +71,5 @@ USB Host, DRP/OTG role switching, Host VBUS sourcing, and runtime role changes
 are outside the product scope.
 
 The single USB-C port also powers the instrument and supports native USB firmware
-flashing. TUSB320 is retained only to observe UFP attach, cable orientation, and
-Source current advertisement; it does not control USB roles.
+flashing. Emiuet observes only the USB-C Source current advertisement, to limit
+LED power; it does not control USB roles.

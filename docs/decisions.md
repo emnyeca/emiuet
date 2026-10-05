@@ -59,11 +59,13 @@ USB-C VBUS
 
 hardware ceilingは約5 V / 1.5 Aです。mobile useはexternal USB power bankを使用します。
 
-## 9. TUSB320
+## 9. USB-C current detection
 
-TUSB320は削除せず、fixed UFPのCC/current detectorとして限定利用します。`PORT=L`、`ADDR=L` (`0x60`)、`EN_N=L`とし、CC1/CC2 attach、orientation、Default/1.5 A/3 A Source advertisementをI2Cで取得します。USB Host、DRP、role control、VBUS source controlには使いません。
+CC1/CC2にはそれぞれ5.1 kΩ Rdを置き、各CC電圧をdual comparatorで常時監視します。comparatorはType-Cの1.5 A閾値（vRd 0.66 V）を安全側へ寄せたreferenceと比較し、Rp ≥ 1.5 Aかどうかを1本のGPIOで報告します。USB Host、DRP、role control、VBUS source control、orientation検出は持ちません（USB 2.0 onlyのためorientationは不要）。
 
-Default advertisementではUSB 2.0 500 mAとUSB 3.x 900 mAをCCだけから区別できないため、firmwareは安全側のLED budgetを選びます。1.5 A/3 Aは同じ1.5 A hardware ceilingへ丸めます。接続中のRp変更を反映するため、firmwareはdatasheetに従ってperiodic I2C soft resetを行います。
+Source currentは接続中にも下がり得るため、sinkはRp変化から60 ms以内（Type-C tSinkAdj）に消費電流を下げる必要があります。TUSB320はattach時以外の電流検出更新にI2C soft resetと再debounceを要し、この条件を満たせないため、2026-10-05のオーナー判断で採用をやめました。detectorの未給電・出力開放はDefault側に倒れる構成とします。出力Low固着など、全故障をDefaultとして検出できる構成ではありません。
+
+Default advertisementではUSB 2.0 500 mAとUSB 3.x 900 mAをCCだけから区別できないため、firmwareは安全側のLED budgetを選び、USB configuredかつ非suspendの間だけ許可します。1.5 A/3 Aは同じ1.5 A hardware ceilingへ丸めます。
 
 ## 10. RGB fretboard visualization
 
@@ -85,3 +87,11 @@ Note On/Offによるfretboard visualizationは初期機能として採用しま�
 - Host/DRP/role-switch circuitry
 
 TPS61023とLM66100にはRev.Bで別用途がないため採用しません。Rev.A manufacturing dataはhistoryとして保持し、Rev.B PCBはcurrent schematicから別工程で再設計します。
+
+## 12. Rev.Bで維持する外観・機構
+
+2026-10-05のオーナー指示により、Rev.Aの外形寸法、キー間隔、スイッチとスライダーの位置を含む外観・デザインを維持します。回路変更を理由に操作面を再配置しません。
+
+OLEDはWaveshare 0.96inch OLED Module (C)（SSD1315、128 × 64、上部16 px黄／下部青、26 × 26 mm、7-pin）を採用し、I2C（0x3C）で接続します。Rev.Aの取付穴・plate/top cutout、firmwareの描画（u8g2 SSD1315、黄帯16 px）がこのmoduleを前提としており、開発資産と外観をそのまま活かすためです（2026-10-05オーナー指示）。
+
+既存PCBとplate/topの形状・穴・操作部位置を機構の参照とします。基板間の座標系・表裏の対応は組立として照合し、差異を勝手に均して修正しません。USBポート削減とMIDI IN追加に伴う開口の扱いなど、外観維持と衝突する変更は具体案を作ってオーナーに確認します。抽出結果と未確認事項は `rev-b-circuit-notes.md` に記録します。

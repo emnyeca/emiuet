@@ -44,7 +44,7 @@ Rev.B simplifies Emiuet into a USB-powered Device/UFP:
 - ESP32-S3-MINI-1 using native USB
 - One USB-C port for 5 V power, USB MIDI, USB HID, and firmware flashing
 - Persistent USB MIDI + HID Keyboard composite device
-- TUSB320 used only for USB-C attach, orientation, and Source current detection
+- USB-C CC pull-downs with a comparator that tracks the Source current advertisement
 - No USB Host, DRP, Host VBUS sourcing, internal battery, charger, or PowerPath
 - SK6812 MINI-E ×78 on one data chain with a 3.3 V-to-5 V buffer
 - Firmware-limited LED brightness/current based on conservative USB power budgets
@@ -75,9 +75,11 @@ Rev.B schematic. Rev.B placement and routing require a separate PCB redesign.
 
 ## Project status
 
-The Rev.B schematic is an architecture draft, not a fabrication-ready release.
-Protection parts, regulator and MIDI interface selections, passive values, ERC
-cleanup, PCB layout, and physical validation remain open engineering work.
+The Rev.B schematic is an early architecture draft, not a fabrication-ready release.
+USB-C current detection, reset/boot, the RGB buffer, and the OLED connector are
+drawn; power and MIDI circuits are incomplete, and the matrix, sliders, buttons,
+and protection circuits still need implementation. Component selection, footprints, PCB layout,
+and physical validation remain open engineering work.
 
 ## License
 

@@ -16,6 +16,14 @@ extern void esp_rom_delay_us(uint32_t us);
 #include "esp_timer.h"
 #include "esp_random.h"
 
+/* A coarser tick silently stretches the scan period (100 Hz turns 5 ms into
+ * 10 ms) and with it the key-to-MIDI latency. A stale sdkconfig keeps its old
+ * value, so fail the build instead.
+ */
+#if configTICK_RATE_HZ < 1000
+#error "Emiuet timing needs CONFIG_FREERTOS_HZ=1000 (see sdkconfig.defaults); update the build's sdkconfig"
+#endif
+
 static matrix_event_cb_t g_cb = NULL;
 static TaskHandle_t g_scan_task = NULL;
 

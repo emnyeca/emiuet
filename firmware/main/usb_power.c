@@ -12,23 +12,37 @@
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static usb_power_status_t s_status = {
-    .attached_as_sink = false,
-    .orientation_cc2 = false,
     .advertised_current = USB_CURRENT_UNKNOWN,
-    .rgb_budget_ma = CONFIG_EMIUET_RGB_DEFAULT_BUDGET_MA,
+    .rgb_budget_ma = 0,
 };
+static bool s_usb_configured;
+static bool s_usb_suspended;
 
-void usb_power_set_status(bool attached_as_sink, bool orientation_cc2,
-                          usb_current_mode_t current)
+static void update_budget(void)
 {
-    const uint16_t budget = (current == USB_CURRENT_1P5A || current == USB_CURRENT_3A)
-                                ? CONFIG_EMIUET_RGB_1P5A_BUDGET_MA
-                                : CONFIG_EMIUET_RGB_DEFAULT_BUDGET_MA;
+    s_status.rgb_budget_ma = 0;
+    if (s_status.advertised_current == USB_CURRENT_1P5A_OR_MORE) {
+        s_status.rgb_budget_ma = CONFIG_EMIUET_RGB_1P5A_BUDGET_MA;
+    } else if (s_status.advertised_current == USB_CURRENT_DEFAULT &&
+               s_usb_configured && !s_usb_suspended) {
+        s_status.rgb_budget_ma = CONFIG_EMIUET_RGB_DEFAULT_BUDGET_MA;
+    }
+}
+
+void usb_power_set_advertised_current(usb_current_mode_t current)
+{
     portENTER_CRITICAL(&s_mux);
-    s_status.attached_as_sink = attached_as_sink;
-    s_status.orientation_cc2 = orientation_cc2;
     s_status.advertised_current = current;
-    s_status.rgb_budget_ma = budget;
+    update_budget();
+    portEXIT_CRITICAL(&s_mux);
+}
+
+void usb_power_set_bus_state(bool configured, bool suspended)
+{
+    portENTER_CRITICAL(&s_mux);
+    s_usb_configured = configured;
+    s_usb_suspended = suspended;
+    update_budget();
     portEXIT_CRITICAL(&s_mux);
 }
 
