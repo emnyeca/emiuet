@@ -16,7 +16,7 @@
 | 2 | 回路を編集・機械検証・目視確認できる | KiCad依存整理、ERC/netlist/BOM/SVG出力 | 図の読みやすさを監修 | 出力環境は完了、回路合格は未達 |
 | 3 | USB給電条件と部品選定の根拠が揃う | 状態表、故障時FW、電源候補比較 | CC検出方式・OLED型番は回答済み | CC検出は設計済み、3.3 V・保護・電力内訳が未完 |
 | 4 | 接続の揃ったRev.B schematic | MCU/USB/電源/MIDI/matrix/UI/RGBの設計と独立レビュー | tradeoffと回路を監修 | reset/BOOT・CC検出・OLED・RGB buffer済み、電源/MIDI/matrix/slider未完 |
-| 5 | 小基板で電源・信号を実証 | 既存VAL-CORE-01へ反映、測定手順 | 製造判断・組立・V0–V2測定 | 回路確定待ち |
+| 5 | 小基板で電源・信号を実証 | 既存VAL-CORE-01の回路図を現行方針へ更新し、BOM・測定手順・レビュー材料を揃える | 回路と部品候補を監修し、発注・組立・V0–V2測定を判断 | VAL-CORE-01はTUSB320前提の旧案を含むため更新待ち |
 | 6 | 外観を維持した78キーRev.B PCB | 機構照合・配置配線、DRC/parity/DFM | 組立性と発注を確認 | 小基板の結果待ち |
 | 7 | 楽器として使えることを実証 | 測定結果の解析・修正 | 78キー負荷・演奏・連続運転のV3測定 | Rev.B試作待ち |
 
@@ -25,6 +25,17 @@ ERC合格、実機合格、製造承認は別々に記録する。実測前はUN
 ## 現在の再開地点
 
 **次は手順3の3.3 V regulator・入力保護・Default電力内訳を決め、手順4の残りブロックを実回路化する。** 外形、キー間隔、スイッチ／スライダー位置などの外観は維持する。OLEDはRev.Aと同じWaveshare 0.96inch OLED (C)に決定済み。
+
+### 検証と発注の責務
+
+「実測してからschematicを決める」のではなく、確認対象を限定した検証用schematicを先に作る。今回の順序は次の通りとする。
+
+1. AIが `emiuet-validation/hardware/val-core-01/VAL-CORE-01.kicad_sch` を現行方針（single USB-C、Rd＋comparator、候補3.3 V、入力保護、5V LED branch）へ更新し、接続、部品候補、テストポイント、未確定値を記録する。
+2. AIがnetlist/ERC、BOM、部品datasheet、V0–V2の測定手順を揃える。ここでのschematicはVAL-CORE-01の検証範囲に限定し、製品Rev.Bの78キーPCBを確定したことを意味しない。
+3. オーナーが回路の意図、部品候補、費用・調達条件、測定可能性を監修し、発注可否を判断する。AIは発注や製造承認を代行しない。
+4. 発注・組立後は、オーナーが実機を測定する。AIは測定ログの整理、判定、回路・FW候補の修正案を担当する。実測結果が出るまで、製品の採用品・電力適合・製造可否は未確定とする。
+
+VAL-CORE-01の現行READMEとvalidation matrixは `emiuet-validation` 側の正本であり、同リポジトリの回路図が旧TUSB320前提のままでは発注対象にしない。
 
 - オーナー判断で、TUSB320をRd＋TLV7022 comparatorへ置換した。TUSB320はType-CのtSinkAdj（60 ms）を満たせないため。decisions §9、history、pinout、firmwareに反映済み。
 - schematicは101→111部品。CC検出、RGB_DATA pulldown、OLED connector（Rev.A footprintを流用）を追加し、U2・R3を撤去した。ERCは**35 errors / 167 warnings**（初期50 / 174）。新ブロックはnetlistと描画で確認済み。回路はまだ完成していない。
