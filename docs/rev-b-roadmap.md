@@ -45,6 +45,7 @@ ERC合格、実機合格、製造承認は別々に記録する。実測前はUN
   - 時間指定はすべて `pdMS_TO_TICKS` 経由で、ms単位の設計値は変わらない。tick割込みの負荷増と実際の押鍵遅延は実機で確認する。
 - 実機でのCC応答時間、PD sourceのCC波形、Default時の総電流、MIDI送信と押鍵の実機遅延、task WDTの有無は未実施。
 - ローカルの `firmware/build-revb/sdkconfig` は古い値（TRS無効、100 Hz）のままdefaultsと食い違っていたので、defaultsから再生成した。別PCでも同じ現象が起き得る。tickが古い場合は `matrix_scan.c` がbuildを止める。
+- **手順3の候補比較（2026-10-05）:** 3.3 VはTPS62162 buckを第一候補、AP2112K-3.3を熱評価付き代替候補とした。VBUS保護はTVS＋過電流保護、5V_LED branchはTPS2553級のcurrent-limited switchを候補とし、USB D+/D−は低容量ESD array、CCは低漏れ保護を別条件で選ぶ。MPN・footprint・突入・実測電流は未確定。
 
 今回のレビュー確認（2026-10-05）:
 

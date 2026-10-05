@@ -74,6 +74,20 @@ Default 500 mAの内訳は、MCUのUSB/BLE動作電流とSK6812 MINI-Eの待機�
 
 根拠: [AP2112 datasheet](https://www.diodes.com/datasheet/download/AP2112.pdf)、[TPS62162 datasheet](https://www.ti.com/lit/ds/symlink/tps62162.pdf)。発熱値は単純な(Vin−Vout)×Iの計算で、温度予測ではない。ESP32-S3の電源能力要求、OLED等の負荷、USB総電力、温度条件を揃えて選定する。input protection、inrush、LED電源の遮断手段も同じ電力設計で決める。
 
+### 手順3の暫定選定
+
+現時点では **TPS62162を3.3 V buckの第一候補**とする。TIの製品資料では、入力3–17 V、固定3.3 V、1 A、同期整流、軽負荷効率、enable、power-goodを備える。USB VBUSの5 Vから3.3 Vを作るため入力範囲に余裕があり、ESP32-S3の無線・USB peakを含む可能性のある300 mA以上の負荷で、AP2112系LDOより発熱を抑えやすい。これは候補比較上の判断であり、実測負荷・温度・layoutを確認するまで採用品とはしない。
+
+AP2112K-3.3は回路が単純で候補から外さないが、5 Vから3.3 Vへの損失が負荷に比例するため、300 mAで約0.51 W、500 mAで約0.85 Wとなる。OLED/comparatorだけでなくESP32-S3のpeakを含む実測で、この熱を許容できる根拠が得られた場合に限り採用を再検討する。
+
+入力保護は次の分離を第一候補とする。
+
+- USB D+/D−: TPD2EUSB30A等の低容量ESD arrayをコネクタ近傍に置く。TI資料上、TPD2EUSB30AはUSB 3.0向け低容量保護品だが、EmiuetはUSB 2.0であり、実際のclamp・layout・ESD帰路を確認してから型番を固定する。
+- VBUS: TVS、過電流保護、bulk容量をコネクタ近傍に配置する。TPS2553は2.5–6.5 V入力、0.075–1.7 A adjustable current limit、reverse blockingの電源switch候補であり、5V_LED branchの突入・短絡制限候補とする。MCU/3.3 V branchを同じswitchで遮断するかは、USB enumerationとfault時の要求を整理してから決める。
+- CC1/CC2: comparator入力のRCとRdは既存設計を維持し、CC線のESD保護はD+/D−用とは別に低容量・低漏れ条件で選ぶ。CCのclampが判定電圧を変えないことを確認する。
+
+Default 500 mAの内訳は、ESP32-S3（USB/BLE peak）、OLED、comparator、SK6812のidle電流、regulator損失を分けて測定する。LED rendererの200 mA budgetはこの総量の保証値ではなく、測定前にUSB適合を宣言しない。
+
 ## 確認結果と限界
 
 111 components。KiCad 10.0.3でERCは35 errors / 167 warnings（初期50 / 174）。残りはregulator・MIDI未接続などに由来し、今回のブロックからは新しい違反は出ていない。CC検出、OLED、R14の各pinの接続はXML netlistで確認し、描画も目視で確認した。ERCをignoreで消してはいない。未接続電源・MIDI等が残るので製造不可。
