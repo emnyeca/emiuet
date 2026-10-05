@@ -13,8 +13,8 @@
 #define CONFIG_EMIUET_MIDI_TRS_UART_ENABLE 0
 #endif
 
-#ifndef CONFIG_EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT
-#define CONFIG_EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT 0
+#ifndef CONFIG_EMIUET_MIDI_TRS_IN_ENABLE
+#define CONFIG_EMIUET_MIDI_TRS_IN_ENABLE 0
 #endif
 
 #ifndef CONFIG_EMIUET_MIDI_TASK_TRS_PRIORITY
@@ -31,6 +31,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "midi_input.h"
 
 static const char *TAG = "midi_out_uart_trs";
 
@@ -40,11 +41,10 @@ static const char *TAG = "midi_out_uart_trs";
  * - UART: 31250 bps, 8-N-1
  * - Hardware is responsible for MIDI electrical compliance.
  *
- * NOTE: The design maps TRS MIDI OUT to PIN_MIDI_OUT_TX (UART0 TX).
- * If the ESP-IDF console also uses UART0, it will conflict.
+ * Rev.B maps both Type-A TRS directions to UART1 through the GPIO matrix.
  */
 
-#define MIDI_TRS_UART_PORT       UART_NUM_0
+#define MIDI_TRS_UART_PORT       UART_NUM_1
 #define MIDI_TRS_UART_BAUDRATE   31250
 
 #define MIDI_TRS_COALESCE_CHANNELS 16
@@ -58,6 +58,8 @@ static bool s_inited = false;
 static bool s_enabled = false;
 static QueueHandle_t s_q = NULL;
 static TaskHandle_t s_task = NULL;
+static TaskHandle_t s_rx_task = NULL;
+static midi_input_parser_t s_rx_parser;
 static portMUX_TYPE s_coalesce_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /* Coalesce state (per-channel) */
@@ -162,45 +164,57 @@ static void trs_flush_coalesced_once(void)
     }
 }
 
+/* Producers publish (enqueue or coalesce) before notifying. The sender drains
+ * everything before waiting again, so a notification given during a drain stays
+ * pending and the next wait returns at once: no wakeup is lost.
+ */
+static inline void trs_tx_wake(void)
+{
+    TaskHandle_t task = s_task;
+    if (task) xTaskNotifyGive(task);
+}
+
 static void trs_sender_task(void *arg)
 {
     (void)arg;
 
     /* We intentionally do not call uart_wait_tx_done() per message.
      * UART driver TX buffer + this dedicated task provides stable latency.
+     * uart_write_bytes() waits for ring-buffer space, so there is no retry state.
      */
     const int FLUSH_EVERY_N_EVENTS = 8;
-    int sent_since_flush = 0;
 
-    while (1) {
+    for (;;) {
+        int sent_since_flush = 0;
         midi_tx_item_t item = {0};
 
-        /* Wait for discrete events; if none arrive, periodically flush coalesced values. */
-        if (s_q && xQueueReceive(s_q, &item, pdMS_TO_TICKS(1)) == pdTRUE) {
+        /* Single sender task owns the UART; no mutex required. */
+        while (s_q && xQueueReceive(s_q, &item, 0) == pdTRUE) {
             maybe_update_hwm();
-
-            /* Single sender task owns the UART; no mutex required. */
-            bool ok = trs_uart_write_bytes(item.bytes, item.len);
-
-            if (!ok) {
+            if (!trs_uart_write_bytes(item.bytes, item.len)) {
                 s_drop_write++;
             }
-
-            sent_since_flush++;
-            if (sent_since_flush >= FLUSH_EVERY_N_EVENTS) {
+            if (++sent_since_flush >= FLUSH_EVERY_N_EVENTS) {
                 sent_since_flush = 0;
                 trs_flush_coalesced_once();
             }
-
-            maybe_log_stats();
-            continue;
         }
 
-        /* Idle path: flush continuous updates promptly. */
+        /* Queue empty: flush continuous updates promptly, then sleep until notified. */
         trs_flush_coalesced_once();
         maybe_log_stats();
+        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+}
 
-        taskYIELD();
+static void trs_receiver_task(void *arg)
+{
+    (void)arg;
+    uint8_t data[64];
+    for (;;) {
+        const int count = uart_read_bytes(MIDI_TRS_UART_PORT, data, sizeof(data),
+                                          pdMS_TO_TICKS(20));
+        if (count > 0) midi_input_feed(&s_rx_parser, data, (size_t)count);
     }
 }
 
@@ -214,19 +228,6 @@ bool midi_out_uart_trs_init(void)
     ESP_LOGI(TAG, "TRS UART backend disabled (CONFIG_EMIUET_MIDI_TRS_UART_ENABLE=n)");
     return false;
 #else
-
-    /* Protect against the common default: console on UART0. */
-#if defined(CONFIG_ESP_CONSOLE_UART) && CONFIG_ESP_CONSOLE_UART
-#if defined(CONFIG_ESP_CONSOLE_UART_NUM) && (CONFIG_ESP_CONSOLE_UART_NUM == 0)
-#if !CONFIG_EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT
-    s_enabled = false;
-    ESP_LOGE(TAG,
-             "TRS UART backend not started: console uses UART0 (CONFIG_ESP_CONSOLE_UART_NUM=0). "
-             "Move console off UART0 (e.g., USB Serial/JTAG) or set CONFIG_EMIUET_MIDI_TRS_UART_ALLOW_UART0_CONSOLE_CONFLICT=y.");
-    return false;
-#endif
-#endif
-#endif
 
     uart_config_t cfg = {
         .baud_rate = MIDI_TRS_UART_BAUDRATE,
@@ -246,7 +247,7 @@ bool midi_out_uart_trs_init(void)
 
     err = uart_set_pin(MIDI_TRS_UART_PORT,
                        (int)PIN_MIDI_OUT_TX,
-                       UART_PIN_NO_CHANGE,
+                       CONFIG_EMIUET_MIDI_TRS_IN_ENABLE ? (int)PIN_MIDI_IN_RX : UART_PIN_NO_CHANGE,
                        UART_PIN_NO_CHANGE,
                        UART_PIN_NO_CHANGE);
     if (err != ESP_OK) {
@@ -255,10 +256,7 @@ bool midi_out_uart_trs_init(void)
         return false;
     }
 
-    /* TX only. We keep a small TX buffer so callers can write without blocking. */
-    /* Provide RX buffer too (even if unused) to avoid edge-case behavior differences
-     * across ESP-IDF versions/configs.
-     */
+    /* A single UART driver owns both isolated MIDI IN and compliant MIDI OUT. */
     err = uart_driver_install(MIDI_TRS_UART_PORT, 256, 512, 0, NULL, 0);
     if (err != ESP_OK) {
         s_enabled = false;
@@ -289,9 +287,28 @@ bool midi_out_uart_trs_init(void)
         }
     }
 
+#if CONFIG_EMIUET_MIDI_TRS_IN_ENABLE
+    midi_input_parser_init(&s_rx_parser);
+    if (s_rx_task == NULL) {
+        BaseType_t ok = xTaskCreatePinnedToCore(trs_receiver_task,
+                                               "midi_trs_rx",
+                                               3072,
+                                               NULL,
+                                               CONFIG_EMIUET_MIDI_TASK_TRS_PRIORITY,
+                                               &s_rx_task,
+                                               0);
+        if (ok != pdPASS) {
+            ESP_LOGE(TAG, "failed to create receiver task");
+            return false;
+        }
+    }
+#endif
+
     s_enabled = true;
-    ESP_LOGI(TAG, "TRS UART backend initialized (port=%d tx=%d baud=%d)",
-             (int)MIDI_TRS_UART_PORT, (int)PIN_MIDI_OUT_TX, (int)MIDI_TRS_UART_BAUDRATE);
+    ESP_LOGI(TAG, "TRS UART backend initialized (port=%d tx=%d rx=%d baud=%d)",
+             (int)MIDI_TRS_UART_PORT, (int)PIN_MIDI_OUT_TX,
+             CONFIG_EMIUET_MIDI_TRS_IN_ENABLE ? (int)PIN_MIDI_IN_RX : -1,
+             (int)MIDI_TRS_UART_BAUDRATE);
     return true;
 #endif
 }
@@ -310,6 +327,7 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
         s_pb_lsb[ch] = (uint8_t)(bytes[1] & 0x7Fu);
         s_pb_msb[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_coalesce_mux);
+        trs_tx_wake();
         return true;
     }
 
@@ -320,6 +338,7 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
         s_cc1_pending[ch] = true;
         s_cc1_val[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_coalesce_mux);
+        trs_tx_wake();
         return true;
     }
 
@@ -331,10 +350,11 @@ bool midi_out_uart_trs_send_bytes(const uint8_t *bytes, size_t len)
     if (xQueueSendToBack(s_q, &item, 0) != pdTRUE) {
         s_drop_queue++;
         maybe_update_hwm();
-        maybe_log_stats();
+        trs_tx_wake();
         return false;
     }
 
     maybe_update_hwm();
+    trs_tx_wake();
     return true;
 }

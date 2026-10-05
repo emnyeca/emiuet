@@ -5,13 +5,14 @@ This project has intentional constraints. Do not generalize it into a generic MI
 
 ## Source of Truth (Priority Order)
 
-1. `/docs/` (design intent, decisions, constraints)
-2. Existing `/firmware/` code behavior (do not change observable behavior casually)
-3. `/hardware/` schematics and PCB design (electrical requirements)
-4. `README.md` (project overview)
+Read [AGENTS.md](../AGENTS.md) and its governance references first.
+Current product decisions live in `docs/decisions.md`; GPIO allocation lives in
+`docs/pinout-v3.md`. Implementation, historical files, and measured evidence have
+different roles; do not treat all of `/docs/` as current specifications.
 
-If sources conflict, prefer `/docs/` and existing code behavior.
-Ask for clarification only if a change would affect musical response or power stability.
+For Rev.B work, resume from `docs/rev-b-roadmap.md` and update it before handing off.
+This shared roadmap must be sufficient for another AI Agent to continue without
+access to the current conversation or agent-specific memory.
 
 ## Non-Goals (Do NOT do these)
 

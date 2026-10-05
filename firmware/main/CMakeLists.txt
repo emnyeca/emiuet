@@ -10,6 +10,8 @@ idf_component_register(
     PRIV_REQUIRES esp_driver_ledc
     PRIV_REQUIRES esp_timer
     PRIV_REQUIRES esp_driver_i2c
+    PRIV_REQUIRES esp_driver_rmt
+    PRIV_REQUIRES led_strip
     PRIV_REQUIRES esp_adc
     PRIV_REQUIRES driver
     PRIV_REQUIRES u8g2

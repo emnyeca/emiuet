@@ -1,4 +1,6 @@
-# Sonatino / Emiuet 比較技術レポート
+# Historical: Sonatino / Rev.A comparison report
+
+> 作成時点のRev.Aおよび撤回済みRev.B案の比較記録です。現行仕様の正本ではありません。
 
 作成日: 2026-08-26  
 対象: Sonatino `3dd28dbe` / Emiuet `6cb9148b`

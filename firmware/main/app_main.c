@@ -5,6 +5,9 @@
 #include "freertos/task.h"
 
 #include "board_pins.h"
+#include "board_i2c.h"
+#include "led_renderer.h"
+#include "usb_cc_detect.h"
 #include "ui_led_status.h"
 #include "ui_oled.h"
 
@@ -47,6 +50,11 @@ void app_main(void)
 
     /* Stage 1: safe pins only (LED/buttons/power status, etc.) */
     board_pins_init_early();
+
+    /* Rev.B: I2C serves the OLED; USB-C current is a CC comparator GPIO. */
+    (void)board_i2c_init();
+    (void)usb_cc_detect_start();
+    (void)led_renderer_start();
 
     /* Centralized buttons + control state machine (octave/MPE/long-press) */
     controls_start();

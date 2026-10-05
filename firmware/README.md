@@ -1,57 +1,45 @@
-# Emiuet firmware
+# Emiuet Rev.B firmware
 
-Emiuet firmware targets ESP32-S3 with ESP-IDF 5.3.4. Arduino is not used.
+ESP-IDF 5.3.4、ESP32-S3-MINI-1-N4R2向けです。
 
-The matrix scanner produces physical press/release events. `input_router`
-routes those events to either the existing MIDI path or the USB HID keyboard
-path according to the explicit input mode. USB-MIDI and HID are exposed
-together as one composite USB device, so switching MIDI/TYPE does not require
-USB disconnect or re-enumeration.
-
-USB-C #2 is a fixed USB Device/UFP. The firmware has no Host stack, role
-negotiation, Host VBUS control, or runtime role state machine. Rev.B's
-self-powered VBUS monitor is enabled with
-`CONFIG_EMIUET_USB_SELF_POWERED_VBUS_MONITOR` only after the protected monitor
-signal is physically present; it stays disabled on Rev.A.
-
-For the Rev.B hardware profile, configure a separate build directory with both
-defaults files:
+## Data paths
 
 ```text
-idf.py -B build-revb -D SDKCONFIG=build-revb/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rev-b.defaults" build
+matrix → input_router → USB/TRS MIDI TX or USB HID
+USB MIDI RX / isolated TRS MIDI RX → midi_input → led_control
+→ led_renderer → espressif/led_strip RMT DMA → SK6812 x78
+CC comparator (GPIO37) → usb_cc_detect → usb_power → renderer current limiter / OLED status
 ```
+
+USBはbus-powered Composite Deviceです。self-powered VBUS GPIO、Host stack、role
+negotiation、battery/charger stateはありません。
+
+初期RGB inputはMIDI Note On/OffとCC123 All Notes Offです。global brightnessを含む
+device-level LED control protocolは未確定です。CC7などのstandard musical CCを
+device configurationへ転用せず、将来SysEx等の明示的なprotocolとして定義します。
+SysEx拡張点はtransportの外側に残していますが、protocolはまだ固定しません。
 
 ## Build
 
-Use an ESP-IDF 5.3.4 shell:
+ESP-IDF shellで次を実行します。
 
 ```text
-idf.py build
+idf.py -B build-revb -D SDKCONFIG=build-revb/sdkconfig \
+  -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rev-b.defaults" build
 ```
 
-The managed component lock selects `esp_tinyusb` 2.0.1~1 and TinyUSB
-0.19.0~2. Both `CONFIG_TINYUSB_MIDI_COUNT=1` and
-`CONFIG_TINYUSB_HID_COUNT=1` are required.
+FreeRTOS tickは1000 Hz（`CONFIG_FREERTOS_HZ=1000`）を前提にしています。100 Hzでは `pdMS_TO_TICKS(1)` と `pdMS_TO_TICKS(5)` が0になり、matrix scanは最小1 tick補正で10 ms周期、補正のない再送待ちは待機なしになっていたためです。既存のbuild用sdkconfigはdefaultsで上書きされないので、古い値のままだと `matrix_scan.c` がbuildを止めます。その場合はbuild directoryの `sdkconfig` の該当行を直すか、`sdkconfig` を退避して再生成してください。
 
-## Input-mode structure
+MIDI送信task（USB/TRS/BLE）は、producerからのtask notificationで起きて、queueとcoalesce値を出し切ってから待ちます。演奏側は待ちなしでenqueueし、通知するだけです。
 
-```text
-matrix_scan -> input_router -> MIDI output
-                           -> keyboard_input -> USB HID queue
-```
+`espressif/led_strip`はRMT backendとESP32-S3 DMAを使用します。`sdkconfig.defaults`の
+Default/1.5A LED budgetとbrightness ceilingはVAL-CORE-01/V3実測後に確定します。
 
-Mode changes and USB detach clear all tracked MIDI notes, send MIDI All Notes
-Off/pitch-bend center, discard stale USB-MIDI queue contents, and clear the HID
-report queue. The pitch-bend slider continues to be sampled in TYPE mode but
-does not emit MIDI.
+Host-side logic testsは `tests/` にあります。ESP-IDF buildがUSB descriptor、I2C、
+UART、RMTを含むintegration checkです。
 
-The editable keyboard mapping is centralized in `main/keyboard_keymap.c`.
-See [`../docs/keyboard-mode.md`](../docs/keyboard-mode.md) for the user-facing
-layout and USB-role findings.
+## Rev.B設計中の電力制御
 
-## Host-side logic tests
+起動直後のCC判定前はRGB budgetを0にします。Default広告ではUSB configuredかつ非suspendの場合だけ200 mA設定を許可し、Rp ≥ 1.5 A（3 Aを含む）では1000 mA設定を上限とします。これはLEDの推定予算であり、基板全体のUSB消費電流保証ではありません。
 
-The keymap and keyboard report-state tests are in `tests/`. They are small,
-libc-free C programs so they can be built with the bundled host clang even on
-a machine without a separate desktop C toolchain. The firmware build remains
-the integration check for the ESP-IDF/TinyUSB descriptor and task code.
+`usb_cc_detect` は10 ms周期でGPIO37を読み、Rp低下は2 sample、上昇は100 ms安定で反映します。Type-C tSinkAdj（60 ms）内に収める設計ですが、実機の応答時間測定は未完了です。根拠・次の作業は [回路ノート](../docs/rev-b-circuit-notes.md) と [ロードマップ](../docs/rev-b-roadmap.md) を参照してください。

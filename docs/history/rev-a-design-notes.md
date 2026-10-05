@@ -1,4 +1,6 @@
-# Emiuet – Design Notes
+# Historical: Emiuet Rev.A design notes
+
+> 内蔵電池とdual USBを前提とする履歴資料です。Rev.B current specificationではありません。
 
 This document records design rationale, constraints, and implementation intent
 that are intentionally omitted from the README.

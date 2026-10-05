@@ -148,15 +148,25 @@ static void ble_flush_coalesced_once(void)
     }
 }
 
+/* Producers publish (enqueue or coalesce) before notifying. The sender drains
+ * everything before waiting again, so a notification given during a drain stays
+ * pending and the next wait returns at once: no wakeup is lost.
+ */
+static inline void ble_tx_wake(void)
+{
+    TaskHandle_t task = s_ble_tx_task;
+    if (task) xTaskNotifyGive(task);
+}
+
 static void ble_tx_task(void *arg)
 {
     (void)arg;
     const int FLUSH_EVERY_N_EVENTS = 16;
-    int sent_since_flush = 0;
 
-    while (1) {
+    for (;;) {
+        int sent_since_flush = 0;
         midi_tx_item_t item = {0};
-        if (s_ble_q && xQueueReceive(s_ble_q, &item, pdMS_TO_TICKS(10)) == pdTRUE) {
+        while (s_ble_q && xQueueReceive(s_ble_q, &item, 0) == pdTRUE) {
             ble_maybe_update_hwm();
             if (!ble_send_lowlevel(item.bytes, item.len)) {
                 s_ble_drop_send++;
@@ -168,14 +178,11 @@ static void ble_tx_task(void *arg)
                 sent_since_flush = 0;
                 ble_flush_coalesced_once();
             }
-
-            ble_maybe_log_stats();
-            continue;
         }
 
         ble_flush_coalesced_once();
         ble_maybe_log_stats();
-        taskYIELD();
+        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 }
 
@@ -226,6 +233,7 @@ bool midi_out_ble_send_bytes(const uint8_t *bytes, size_t len)
         s_ble_pb_lsb[ch] = (uint8_t)(bytes[1] & 0x7Fu);
         s_ble_pb_msb[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_ble_coalesce_mux);
+        ble_tx_wake();
         return true;
     }
 
@@ -236,6 +244,7 @@ bool midi_out_ble_send_bytes(const uint8_t *bytes, size_t len)
         s_ble_cc1_pending[ch] = true;
         s_ble_cc1_val[ch] = (uint8_t)(bytes[2] & 0x7Fu);
         portEXIT_CRITICAL(&s_ble_coalesce_mux);
+        ble_tx_wake();
         return true;
     }
 
@@ -247,10 +256,11 @@ bool midi_out_ble_send_bytes(const uint8_t *bytes, size_t len)
     if (xQueueSendToBack(s_ble_q, &item, 0) != pdTRUE) {
         s_ble_drop_queue++;
         ble_maybe_update_hwm();
-        ble_maybe_log_stats();
+        ble_tx_wake();
         return false;
     }
 
     ble_maybe_update_hwm();
+    ble_tx_wake();
     return true;
 }
