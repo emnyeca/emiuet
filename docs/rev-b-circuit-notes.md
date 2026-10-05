@@ -76,6 +76,8 @@ Default 500 mAの内訳は、MCUのUSB/BLE動作電流とSK6812 MINI-Eの待機�
 
 ### 手順3の暫定選定
 
+**2026-10-05の再確認:** 上記CC閾値計算の「3.3 V ±1.5%」は未選定電源への仮定であり、TPS62162へは適用できない。[TPS6216x Rev.E §7.5](https://www.ti.com/lit/ds/symlink/tps62160.pdf) はPWMで±3%、power-saveで−3.5/+4%（line/load regulationを含まない）。同じ抵抗1%、offset/hysteresisの仮定では判定点は約0.626–0.745 Vへ広がる。Default上限0.61 Vとの差は約16 mVしかなく、ripple・実際のcommon-modeでのcomparator誤差・ESD漏れをまだ含まない。旧計算の35 mV余裕を根拠にbuckを確定しない。検証基板のCC回路は現行案と接続を合わせたが、この誤差予算は未解決。
+
 現時点では **TPS62162を3.3 V buckの第一候補**とする。TIの製品資料では、入力3–17 V、固定3.3 V、1 A、同期整流、軽負荷効率、enable、power-goodを備える。USB VBUSの5 Vから3.3 Vを作るため入力範囲に余裕があり、ESP32-S3の無線・USB peakを含む可能性のある300 mA以上の負荷で、AP2112系LDOより発熱を抑えやすい。これは候補比較上の判断であり、実測負荷・温度・layoutを確認するまで採用品とはしない。
 
 AP2112K-3.3は回路が単純で候補から外さないが、5 Vから3.3 Vへの損失が負荷に比例するため、300 mAで約0.51 W、500 mAで約0.85 Wとなる。OLED/comparatorだけでなくESP32-S3のpeakを含む実測で、この熱を許容できる根拠が得られた場合に限り採用を再検討する。

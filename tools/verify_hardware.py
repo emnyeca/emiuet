@@ -25,6 +25,8 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kicad-cli", help="Path to KiCad 10.0.3 executable")
+    parser.add_argument("--schematic", type=Path, default=ROOT / "hardware/kicad/Emiuet.kicad_sch",
+                        help="Native schematic to review (including validation boards)")
     args = parser.parse_args()
     cli = args.kicad_cli or shutil.which("kicad-cli")
     if not cli and os.name == "nt":
@@ -50,17 +52,21 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     # Use project tables and packaged libraries, not a developer's global tables.
     env["KICAD_CONFIG_HOME"] = str(output / "kicad-config")
-    source = ROOT / "hardware/kicad/Emiuet.kicad_sch"
+    source = args.schematic.resolve()
+    if not source.is_file():
+        print(f"UNVERIFIED: schematic not found: {source}", file=sys.stderr)
+        return 2
     files = [source, source.with_suffix(".kicad_pro"),
              source.parent / "sym-lib-table", source.parent / "fp-lib-table"]
-    before = {str(p.relative_to(ROOT)): digest(p) for p in files}
+    files = [p for p in files if p.is_file()]
+    before = {str(p): digest(p) for p in files}
     report = {"utc": stamp, "kicad": version, "source_sha256": before,
               "commands": [], "erc": "UNVERIFIED", "footprints": "UNVERIFIED",
               "pcb_drc": "UNVERIFIED", "schematic_pcb_parity": "UNVERIFIED",
               "physical_validation": "UNVERIFIED", "manufacturing_ready": False}
     try:
-        report["commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        report["working_tree"] = subprocess.check_output(["git", "status", "--short"], cwd=ROOT, text=True)
+        report["commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source.parent, text=True).strip()
+        report["working_tree"] = subprocess.check_output(["git", "status", "--short"], cwd=source.parent, text=True)
     except (OSError, subprocess.CalledProcessError):
         report["commit"] = "UNVERIFIED"
 
@@ -117,7 +123,7 @@ def main():
             raise RuntimeError("Referenced symbol libraries could not be resolved")
         if report.get("unresolved_footprints"):
             report["footprints"] = "FAIL"
-        if before != {str(p.relative_to(ROOT)): digest(p) for p in files}:
+        if before != {str(p): digest(p) for p in files}:
             raise RuntimeError("Source changed during export; run again after editing finishes")
         exit_code = 1 if report["erc"] == "FAIL" or report["footprints"] == "FAIL" else 0
     except (OSError, ValueError, ET.ParseError, RuntimeError) as error:
